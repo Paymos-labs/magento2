@@ -1,0 +1,41 @@
+{
+    "paymos_payment_event": {
+        "column": {
+            "event_id": true,
+            "expires_at": true,
+            "created_at": true
+        },
+        "constraint": {
+            "PRIMARY": true
+        },
+        "index": {
+            "PAYMOS_PAYMENT_EVENT_EXPIRES_AT": true
+        }
+    },
+    "paymos_payment_invoice": {
+        "column": {
+            "entity_id": true,
+            "order_id": true,
+            "order_increment_id": true,
+            "external_order_id": true,
+            "paymos_invoice_id": true,
+            "environment": true,
+            "project_id": true,
+            "amount": true,
+            "currency": true,
+            "payment_url": true,
+            "status": true,
+            "renew_count": true,
+            "created_at": true,
+            "updated_at": true
+        },
+        "constraint": {
+            "PRIMARY": true,
+            "PAYMOS_PAYMENT_INVOICE_EXTERNAL_ORDER_ID": true,
+            "PAYMOS_PAYMENT_INVOICE_PAYMOS_INVOICE_ID": true
+        },
+        "index": {
+            "PAYMOS_PAYMENT_INVOICE_ORDER_ID": true
+        }
+    }
+}

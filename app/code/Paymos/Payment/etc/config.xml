@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Default configuration for the Paymos payment method.
+ *
+ * The method is disabled by default (active=0) so a merchant explicitly turns
+ * it on after generating credentials. `model` points at the payment facade
+ * virtual type defined in etc/di.xml (the modern gateway adapter, NOT a
+ * deprecated AbstractMethod subclass).
+ *
+ * API credentials are NOT stored here or in admin fields — they are delivered
+ * in the dashboard-generated paymos-config.php (see Service/Config.php).
+ *
+ * @see https://developer.adobe.com/commerce/php/development/payments-integrations/base-integration/
+ */
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Store:etc/config.xsd">
+    <default>
+        <payment>
+            <paymos>
+                <active>0</active>
+                <model>PaymosPaymentFacade</model>
+                <title>Pay with crypto (Paymos)</title>
+                <is_gateway>1</is_gateway>
+                <can_use_checkout>1</can_use_checkout>
+                <can_use_internal>0</can_use_internal>
+                <can_authorize>1</can_authorize>
+                <can_capture>0</can_capture>
+                <can_void>0</can_void>
+                <can_refund>0</can_refund>
+                <payment_action>authorize</payment_action>
+                <mode>sandbox</mode>
+                <order_status>pending_payment</order_status>
+                <paid_order_status>processing</paid_order_status>
+                <debug>0</debug>
+                <allowspecific>0</allowspecific>
+                <sort_order>1</sort_order>
+            </paymos>
+        </payment>
+    </default>
+</config>

@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Reconcile recent non-terminal Paymos invoices every 15 minutes as a safety
+ * net for missed webhooks.
+ *
+ * @see https://experienceleague.adobe.com/en/docs/commerce-operations/configuration-guide/crons/custom-cron-reference
+ */
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Cron:etc/crontab.xsd">
+    <group id="default">
+        <job name="paymos_reconcile_invoices"
+             instance="Paymos\Payment\Cron\ReconcileInvoices"
+             method="execute">
+            <schedule>*/15 * * * *</schedule>
+        </job>
+    </group>
+</config>

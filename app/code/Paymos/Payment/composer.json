@@ -1,0 +1,32 @@
+{
+    "name": "paymos/magento2-payment",
+    "description": "Paymos hosted-checkout payment module for Magento 2 / Adobe Commerce. Accept USDT, USDC and other crypto with on-chain settlement.",
+    "type": "magento2-module",
+    "license": "MIT",
+    "homepage": "https://paymos.io",
+    "authors": [
+        {
+            "name": "Paymos",
+            "homepage": "https://paymos.io"
+        }
+    ],
+    "require": {
+        "php": "~8.1.0||~8.2.0||~8.3.0||~8.4.0",
+        "magento/framework": ">=103.0",
+        "magento/module-sales": ">=103.0",
+        "magento/module-payment": ">=100.0",
+        "magento/module-checkout": ">=100.0",
+        "magento/module-quote": ">=101.0",
+        "magento/module-store": ">=101.0",
+        "magento/module-config": ">=101.0",
+        "paymos/php-sdk": "^1.0"
+    },
+    "autoload": {
+        "files": [
+            "registration.php"
+        ],
+        "psr-4": {
+            "Paymos\\Payment\\": ""
+        }
+    }
+}

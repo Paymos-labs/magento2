@@ -1,0 +1,61 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Declarative schema for the Paymos module.
+ *
+ *   paymos_payment_event   — webhook dedup; event_id is the PRIMARY KEY so a
+ *                            concurrent re-delivery loses the race on insert.
+ *   paymos_payment_invoice — per-order invoice snapshot (amount/currency/project
+ *                            at creation time) used by AmountGuard, the reverse
+ *                            verifier and reconciliation.
+ *
+ * NOTE: the schema URN is "Setup/Declaration/Schema" (verified against core,
+ * e.g. Magento/GiftMessage/etc/db_schema.xml) — not "Declarative".
+ *
+ * @see https://developer.adobe.com/commerce/php/development/components/declarative-schema/
+ */
+-->
+<schema xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:Setup/Declaration/Schema/etc/schema.xsd">
+
+    <table name="paymos_payment_event" resource="default" engine="innodb" comment="Paymos processed webhook events (dedup)">
+        <column xsi:type="varchar" name="event_id" nullable="false" length="128" comment="Paymos webhook event id (evt_...)"/>
+        <column xsi:type="int" name="expires_at" padding="10" unsigned="true" nullable="false" default="0" comment="Unix time the dedup row may be pruned (short reservation until commit, then full window)"/>
+        <column xsi:type="timestamp" name="created_at" on_update="false" nullable="false" default="CURRENT_TIMESTAMP" comment="Row creation time"/>
+        <constraint xsi:type="primary" referenceId="PRIMARY">
+            <column name="event_id"/>
+        </constraint>
+        <index referenceId="PAYMOS_PAYMENT_EVENT_EXPIRES_AT" indexType="btree">
+            <column name="expires_at"/>
+        </index>
+    </table>
+
+    <table name="paymos_payment_invoice" resource="default" engine="innodb" comment="Paymos invoice snapshot per order">
+        <column xsi:type="int" name="entity_id" padding="10" unsigned="true" nullable="false" identity="true" comment="Row id"/>
+        <column xsi:type="int" name="order_id" padding="10" unsigned="true" nullable="false" comment="Sales order entity id"/>
+        <column xsi:type="varchar" name="order_increment_id" nullable="false" length="64" comment="Sales order increment id (external order id base)"/>
+        <column xsi:type="varchar" name="external_order_id" nullable="false" length="128" comment="external_order_id sent to Paymos (with renew suffix)"/>
+        <column xsi:type="varchar" name="paymos_invoice_id" nullable="false" length="128" comment="Paymos invoice id (inv_...)"/>
+        <column xsi:type="varchar" name="environment" nullable="false" length="16" comment="sandbox|live"/>
+        <column xsi:type="varchar" name="project_id" nullable="false" length="128" comment="Paymos project id"/>
+        <column xsi:type="varchar" name="amount" nullable="false" length="64" comment="Order amount snapshot"/>
+        <column xsi:type="varchar" name="currency" nullable="false" length="16" comment="Order currency snapshot"/>
+        <column xsi:type="text" name="payment_url" nullable="false" comment="Hosted checkout URL"/>
+        <column xsi:type="varchar" name="status" nullable="false" length="64" default="created" comment="Last known invoice status"/>
+        <column xsi:type="int" name="renew_count" padding="10" unsigned="true" nullable="false" default="0" comment="Invoice renewals (amount-change bumps)"/>
+        <column xsi:type="timestamp" name="created_at" on_update="false" nullable="false" default="CURRENT_TIMESTAMP" comment="Row creation time"/>
+        <column xsi:type="timestamp" name="updated_at" on_update="true" nullable="false" default="CURRENT_TIMESTAMP" comment="Row update time"/>
+        <constraint xsi:type="primary" referenceId="PRIMARY">
+            <column name="entity_id"/>
+        </constraint>
+        <constraint xsi:type="unique" referenceId="PAYMOS_PAYMENT_INVOICE_EXTERNAL_ORDER_ID">
+            <column name="external_order_id"/>
+        </constraint>
+        <constraint xsi:type="unique" referenceId="PAYMOS_PAYMENT_INVOICE_PAYMOS_INVOICE_ID">
+            <column name="paymos_invoice_id"/>
+        </constraint>
+        <index referenceId="PAYMOS_PAYMENT_INVOICE_ORDER_ID" indexType="btree">
+            <column name="order_id"/>
+        </index>
+    </table>
+</schema>

@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Payment method + group declaration.
+ *
+ * Paymos is an online hosted-redirect gateway (config.xml sets is_gateway=1),
+ * so it declares its own online group rather than appearing under the built-in
+ * "offline" group.
+ *
+ * @see https://developer.adobe.com/commerce/php/development/payments-integrations/base-integration/
+ */
+-->
+<payment xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Payment:etc/payment.xsd">
+    <groups>
+        <group id="paymos">
+            <label>Paymos</label>
+        </group>
+    </groups>
+    <methods>
+        <method name="paymos">
+            <allow_multiple_address>0</allow_multiple_address>
+        </method>
+    </methods>
+</payment>

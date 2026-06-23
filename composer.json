@@ -1,0 +1,12 @@
+{
+    "name": "paymos/magento2-paymos",
+    "description": "Development workspace for the Paymos Magento 2 payment module (build tooling and tests). The publishable module package is app/code/Paymos/Payment.",
+    "type": "project",
+    "license": "MIT",
+    "require": {
+        "php": ">=7.4"
+    },
+    "scripts": {
+        "test": "php tests/run.php"
+    }
+}
