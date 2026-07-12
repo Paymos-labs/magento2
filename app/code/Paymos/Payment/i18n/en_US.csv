@@ -6,7 +6,7 @@
 "Title","Title"
 "Name shown to customers on the checkout payment step.","Name shown to customers on the checkout payment step."
 "Mode","Mode"
-"Sandbox uses test credentials; Live takes real payments. The credential package must contain keys for the selected mode.","Sandbox uses test credentials; Live takes real payments. The credential package must contain keys for the selected mode."
+"Sandbox uses test credentials; Live takes real payments. Connect Paymos for the selected mode before enabling checkout.","Sandbox uses test credentials; Live takes real payments. Connect Paymos for the selected mode before enabling checkout."
 "Connection status","Connection status"
 "New order status","New order status"
 "Status applied while the customer is paying (before confirmation).","Status applied while the customer is paying (before confirmation)."

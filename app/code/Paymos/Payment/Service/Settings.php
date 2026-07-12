@@ -10,7 +10,8 @@ use Paymos\Payment\Model\Ui\ConfigProvider;
 
 /**
  * Reads the admin presentation/mode settings from payment/paymos/* in the
- * given store scope. Holds NO secrets — those live in the generated config.
+ * given store scope. Holds NO secrets — those live in the encrypted credential
+ * envelope delivered by Connect Paymos.
  */
 final class Settings
 {
