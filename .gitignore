@@ -12,5 +12,4 @@ Thumbs.db
 *.zip
 .phpunit.result.cache
 app/code/Paymos/Payment/vendor/
-app/code/Paymos/Payment/paymos-config.php
 artifacts/

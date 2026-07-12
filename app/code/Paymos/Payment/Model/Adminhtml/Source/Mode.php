@@ -8,7 +8,7 @@ use Magento\Framework\Data\OptionSourceInterface;
 
 /**
  * Sandbox / Live selector for the admin "Mode" field. The chosen mode decides
- * which environment block of the generated paymos-config.php is used.
+ * which environment block from the encrypted credential store is used.
  */
 final class Mode implements OptionSourceInterface
 {

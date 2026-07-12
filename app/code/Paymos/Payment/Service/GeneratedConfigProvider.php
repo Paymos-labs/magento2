@@ -4,42 +4,28 @@ declare(strict_types=1);
 
 namespace Paymos\Payment\Service;
 
-use Magento\Framework\Component\ComponentRegistrar;
-
-/**
- * Locates and loads the dashboard-generated paymos-config.php that sits at the
- * module root (next to registration.php). The dashboard ZIP injects this file;
- * the merchant never edits it. Loaded once per request.
- */
+/** Loads locally encrypted credentials once per request. */
 final class GeneratedConfigProvider
 {
-    /** @var ComponentRegistrar */
-    private $componentRegistrar;
-
     /** @var Config|null */
     private $cached;
 
-    public function __construct(ComponentRegistrar $componentRegistrar)
+    /** @var CredentialStore */
+    private $credentialStore;
+
+    public function __construct(CredentialStore $credentialStore)
     {
-        $this->componentRegistrar = $componentRegistrar;
+        $this->credentialStore = $credentialStore;
     }
 
     public function get(): Config
     {
         if ($this->cached === null) {
-            $this->cached = Config::fromFile($this->path());
+            $this->cached = Config::fromArray([
+                'environments' => $this->credentialStore->loadCredentials(),
+            ]);
         }
 
         return $this->cached;
-    }
-
-    public function path(): string
-    {
-        $moduleDir = $this->componentRegistrar->getPath(
-            ComponentRegistrar::MODULE,
-            'Paymos_Payment'
-        );
-
-        return rtrim((string) $moduleDir, '/\\') . '/paymos-config.php';
     }
 }

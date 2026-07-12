@@ -146,6 +146,7 @@ function test_magento_webhook_ignores_non_invoice_event()
     $body = json_encode(array(
         'event_id' => 'evt_wd',
         'event_type' => 'withdrawal.completed',
+        'version' => 1,
         'occurred_at' => 1709000000,
         'data' => array('status' => 'completed'),
     ));

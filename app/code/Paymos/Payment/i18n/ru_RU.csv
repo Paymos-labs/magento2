@@ -23,7 +23,7 @@
 "Webhook URL","URL вебхука"
 "Connected (%1)","Подключено (%1)"
 "Not configured","Не настроено"
-"Generate the configuration package in your Paymos dashboard and upload it with the module.","Сформируйте пакет конфигурации в панели Paymos и загрузите его вместе с модулем."
+"Click Connect Paymos and approve this store in your Paymos dashboard.","Нажмите «Подключить Paymos» и подтвердите этот магазин в панели Paymos."
 "Customer is paying via Paymos. Invoice: %1","Покупатель оплачивает через Paymos. Счёт: %1"
 "You will be redirected to Paymos to complete your payment with crypto.","Вы перейдёте на Paymos, чтобы завершить оплату криптовалютой."
 "We could not find your order. Please try again.","Не удалось найти ваш заказ. Попробуйте ещё раз."

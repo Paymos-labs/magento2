@@ -4,8 +4,7 @@
  * Admin settings for the Paymos payment method.
  *
  * Exposes ONLY presentation + mode + order-status mapping. API credentials are
- * NOT entered here: they arrive in the dashboard-generated paymos-config.php and
- * are read-only. The "Connection status" row renders a diagnostics block with
+ * provisioned by Paymos Connect and encrypted in Magento. The "Connection status" row renders a diagnostics block with
  * masked keys / project id (Block\Adminhtml\System\Config\ConnectionStatus).
  *
  * @see https://experienceleague.adobe.com/en/docs/commerce-operations/configuration-guide/files/config-reference-systemxml
@@ -17,7 +16,7 @@
         <section id="payment">
             <group id="paymos" translate="label" type="text" sortOrder="2" showInDefault="1" showInWebsite="1" showInStore="0">
                 <label>Paymos (Pay with crypto)</label>
-                <comment><![CDATA[Accept USDT / USDC and other crypto via Paymos hosted checkout. Generate the configuration package in your Paymos dashboard and upload it with the module — API keys are never typed here.]]></comment>
+                <comment><![CDATA[Accept USDT / USDC and other crypto via Paymos hosted checkout. Use Connect Paymos below; official module archives contain no merchant secrets.]]></comment>
 
                 <field id="active" translate="label" type="select" sortOrder="10" showInDefault="1" showInWebsite="1" showInStore="0">
                     <label>Enabled</label>
@@ -32,7 +31,7 @@
                 <field id="mode" translate="label" type="select" sortOrder="30" showInDefault="1" showInWebsite="1" showInStore="0">
                     <label>Mode</label>
                     <source_model>Paymos\Payment\Model\Adminhtml\Source\Mode</source_model>
-                    <comment>Sandbox uses test credentials; Live takes real payments. The credential package must contain keys for the selected mode.</comment>
+                    <comment>Sandbox uses test credentials; Live takes real payments. Connect Paymos for the selected mode before enabling checkout.</comment>
                 </field>
 
                 <field id="connection_status" translate="label" sortOrder="40" showInDefault="1" showInWebsite="1" showInStore="0">
