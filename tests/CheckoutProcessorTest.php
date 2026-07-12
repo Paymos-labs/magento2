@@ -30,7 +30,7 @@ function test_magento_checkout_creates_invoice_and_snapshot()
     assertFalseValue($result['reused'], 'A fresh invoice must not be flagged reused.');
 
     $payload = $invoices->createPayloads[0];
-    assertSameValue('prj_123', $payload['project_id'], 'project_id must come from the generated config.');
+    assertSameValue('prj_123', $payload['project_id'], 'project_id must come from the credential config.');
     assertSameValue('100.00', $payload['amount'], 'Amount must be a dot-decimal 2dp string.');
     assertSameValue('USD', $payload['currency'], 'Currency must be upper-cased.');
     assertSameValue('100000042-0', $payload['external_order_id'], 'external_order_id must be increment id + renew suffix.');

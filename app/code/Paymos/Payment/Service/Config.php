@@ -6,14 +6,7 @@ namespace Paymos\Payment\Service;
 
 use Paymos\ClientConfig;
 
-/**
- * Immutable Paymos configuration, sourced from the dashboard-generated
- * paymos-config.php (shape: {config_version, environments:{sandbox,live}}).
- *
- * Secrets are read-only and never typed in admin — admin only chooses the
- * active mode (sandbox|live) and presentation. This class mirrors the two-tier
- * config contract every Paymos CMS plugin follows.
- */
+/** Immutable Paymos configuration sourced from Magento's encrypted config store. */
 final class Config
 {
     /** @var array<string, Environment> */
@@ -53,23 +46,6 @@ final class Config
         }
 
         return new self($environments);
-    }
-
-    /**
-     * Load the generated config file; returns an empty config when absent so the
-     * module still installs cleanly before the merchant uploads credentials.
-     */
-    public static function fromFile(string $path): self
-    {
-        if (is_file($path)) {
-            /** @psalm-suppress UnresolvableInclude */
-            $config = require $path;
-            if (is_array($config)) {
-                return self::fromArray($config);
-            }
-        }
-
-        return self::fromArray(['environments' => []]);
     }
 
     /**

@@ -82,7 +82,7 @@ final class Environment
     {
         if (!$this->isConfigured()) {
             throw new \InvalidArgumentException(
-                'Paymos ' . $this->name . ' credentials are missing. Upload the configuration package generated in your Paymos dashboard.'
+                'Paymos ' . $this->name . ' credentials are missing. Connect this store from the Magento admin.'
             );
         }
 

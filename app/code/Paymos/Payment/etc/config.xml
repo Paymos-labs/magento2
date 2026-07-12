@@ -8,8 +8,8 @@
  * virtual type defined in etc/di.xml (the modern gateway adapter, NOT a
  * deprecated AbstractMethod subclass).
  *
- * API credentials are NOT stored here or in admin fields — they are delivered
- * in the dashboard-generated paymos-config.php (see Service/Config.php).
+ * API credentials are NOT stored here or in admin fields. Paymos Connect stores
+ * them with Magento's encryption service.
  *
  * @see https://developer.adobe.com/commerce/php/development/payments-integrations/base-integration/
  */

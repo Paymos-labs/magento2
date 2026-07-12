@@ -23,7 +23,7 @@
 "Webhook URL","Webhook URL"
 "Connected (%1)","Connected (%1)"
 "Not configured","Not configured"
-"Generate the configuration package in your Paymos dashboard and upload it with the module.","Generate the configuration package in your Paymos dashboard and upload it with the module."
+"Click Connect Paymos and approve this store in your Paymos dashboard.","Click Connect Paymos and approve this store in your Paymos dashboard."
 "Customer is paying via Paymos. Invoice: %1","Customer is paying via Paymos. Invoice: %1"
 "You will be redirected to Paymos to complete your payment with crypto.","You will be redirected to Paymos to complete your payment with crypto."
 "We could not find your order. Please try again.","We could not find your order. Please try again."
