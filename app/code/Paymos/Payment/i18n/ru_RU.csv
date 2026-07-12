@@ -6,7 +6,7 @@
 "Title","Название"
 "Name shown to customers on the checkout payment step.","Название, которое видят покупатели на шаге оплаты."
 "Mode","Режим"
-"Sandbox uses test credentials; Live takes real payments. The credential package must contain keys for the selected mode.","Песочница работает на тестовых ключах, боевой режим принимает реальные платежи. Пакет конфигурации должен содержать ключи для выбранного режима."
+"Sandbox uses test credentials; Live takes real payments. Connect Paymos for the selected mode before enabling checkout.","Песочница работает на тестовых ключах, боевой режим принимает реальные платежи. Перед включением оплаты подключите Paymos для выбранного режима."
 "Connection status","Статус подключения"
 "New order status","Статус нового заказа"
 "Status applied while the customer is paying (before confirmation).","Статус заказа, пока покупатель оплачивает (до подтверждения)."

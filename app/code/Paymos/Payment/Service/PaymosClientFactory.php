@@ -7,7 +7,8 @@ namespace Paymos\Payment\Service;
 use Paymos\Client;
 
 /**
- * Builds a Paymos SDK Client for a given environment from the generated config.
+ * Builds a Paymos SDK Client for a given environment from the encrypted
+ * credentials delivered by Connect Paymos.
  * Centralises client construction so controllers and the webhook processor
  * share one factory (and tests can swap a fake via a callable).
  */
