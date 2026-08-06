@@ -4,6 +4,14 @@ All notable changes to the Paymos Magento 2 payment module are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] - 2026-08-06
+
+- feat(locales): Spanish blog and plugin catalogs
+- feat(locales): German blog corpus, plugin catalogs and bot text
+- feat(locales): tr + zh-Hans platform rollout — resx, bots, plugins
+- fix(ecosystem): recover SDK releases
+- chore: bundle Paymos PHP SDK v1.3.0
+
 ## [1.1.3] - 2026-08-03
 
 - chore: bundle Paymos PHP SDK v1.3.0
