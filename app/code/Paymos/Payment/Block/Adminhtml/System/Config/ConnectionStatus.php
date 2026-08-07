@@ -68,9 +68,20 @@ final class ConnectionStatus extends Field
         }
         $html .= '<div style="margin-top:10px"><button type="button" class="action-primary" id="paymos-connect-button"><span>'
             . $this->escapeHtml(__('Connect Paymos')) . '</span></button> <span id="paymos-connect-message"></span></div></div>';
-        $html .= '<script>(function(){var b=document.getElementById("paymos-connect-button"),m=document.getElementById("paymos-connect-message");if(!b)return;'
-            . 'function p(u){return fetch(u,{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:"form_key="+encodeURIComponent(window.FORM_KEY)}).then(function(r){return r.json();});}'
-            . 'b.onclick=function(){b.disabled=true;m.textContent=" Starting…";p(' . json_encode($startUrl) . ').then(function(x){if(x.error)throw new Error(x.error);window.open(x.verification_url,"_blank","noopener,noreferrer");m.textContent=" Waiting for approval. Code: "+x.user_code;var i=Math.max(1,Number(x.interval||5))*1000;setTimeout(function q(){p(' . json_encode($pollUrl) . ').then(function(y){if(y.error)throw new Error(y.error);if(y.status==="connected"){location.reload();return;}setTimeout(q,y.status==="slow_down"?i+5000:i);}).catch(function(e){m.textContent=" "+e.message;b.disabled=false;});},i);}).catch(function(e){m.textContent=" "+e.message;b.disabled=false;});};})();</script>';
+        $html .= '<script>(function(){var b=document.getElementById("paymos-connect-button"),m=document.getElementById("paymos-connect-message"),manual=false;if(!b)return;'
+            . 'function p(u,r){var d="form_key="+encodeURIComponent(window.FORM_KEY);if(r)d+="&paymos_return_url="+encodeURIComponent(r);return fetch(u,{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:d}).then(function(r2){return r2.json();});}'
+            /* The tab is opened synchronously inside the click: browsers only honour
+               window.open for a few seconds after the gesture, so opening it once the
+               start request resolves is blocked on slow connections. No feature string —
+               any feature string asks for a popup, which blockers reject far more often. */
+            . 'b.onclick=function(){b.disabled=true;manual=false;m.textContent=" Starting…";'
+            . 'var t=window.open("","_blank");if(t){try{t.opener=null;}catch(e){}}'
+            . 'p(' . json_encode($startUrl) . ',location.href).then(function(x){if(x.error)throw new Error(x.error);'
+            . 'if(t&&!t.closed){t.location=x.verification_url;m.textContent=" Waiting for approval. Code: "+x.user_code;}'
+            . 'else{manual=true;m.textContent="";var a=document.createElement("a");a.href=x.verification_url;a.target="_blank";a.rel="noopener noreferrer";a.textContent="Open the approval page";'
+            . 'm.appendChild(document.createTextNode(" Your browser blocked the approval tab. "));m.appendChild(a);m.appendChild(document.createTextNode(" Code: "+x.user_code));}'
+            . 'var i=Math.max(1,Number(x.interval||5))*1000;setTimeout(function q(){p(' . json_encode($pollUrl) . ').then(function(y){if(y.error)throw new Error(y.error);if(y.status==="connected"){location.reload();return;}setTimeout(q,y.status==="slow_down"?i+5000:i);}).catch(function(e){if(!manual)m.textContent=" "+e.message;b.disabled=false;});},i);})'
+            . '.catch(function(e){if(t&&!t.closed)t.close();m.textContent=" "+e.message;b.disabled=false;});};})();</script>';
 
         return $html;
     }
