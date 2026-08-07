@@ -33,7 +33,10 @@ final class Start extends Action
             if (stripos($sourceUrl, 'https://') !== 0) {
                 throw new \RuntimeException('Magento base URL must use HTTPS.');
             }
-            $state = (new DeviceConnectClient('https://app.paymos.io'))->start('magento2', $sourceUrl);
+            // The admin page posts its own URL so approval can return the merchant to it.
+            // Paymos drops it unless it shares an origin with the base URL above.
+            $returnUrl = (string) $this->getRequest()->getPost('paymos_return_url', '');
+            $state = (new DeviceConnectClient('https://app.paymos.io'))->start('magento2', $sourceUrl, $returnUrl);
             $this->credentialStore->saveState($state);
             return $json->setData([
                 'verification_url' => $state['verification_url'],
