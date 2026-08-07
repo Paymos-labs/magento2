@@ -19,6 +19,7 @@
     <default>
         <payment>
             <paymos>
+                <group>paymos_group</group>
                 <active>0</active>
                 <model>PaymosPaymentFacade</model>
                 <title>Pay with crypto (Paymos)</title>

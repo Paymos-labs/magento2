@@ -13,7 +13,15 @@
 <payment xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Payment:etc/payment.xsd">
     <groups>
-        <group id="paymos">
+        <!--
+            The id must NOT be "paymos". Magento types both the group id and the
+            method name as xs:ID, which has to be unique across the document, so a
+            group sharing the method's name makes payment.xml invalid — and then
+            Magento\Payment\Model\Config throws for EVERY payment method, not just
+            this one. The core suffixes its own groups for the same reason
+            (see Braintree's "braintree_group").
+        -->
+        <group id="paymos_group">
             <label>Paymos</label>
         </group>
     </groups>
