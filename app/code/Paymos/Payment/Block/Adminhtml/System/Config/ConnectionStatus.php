@@ -15,7 +15,7 @@ use Paymos\Payment\Service\Settings;
  * encrypted credential set is present for the selected mode, the masked API
  * key, the project id and the webhook URL.
  */
-final class ConnectionStatus extends Field
+class ConnectionStatus extends Field
 {
     /** @var GeneratedConfigProvider */
     private $configProvider;

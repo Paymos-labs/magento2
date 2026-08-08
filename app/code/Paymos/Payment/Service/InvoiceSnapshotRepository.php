@@ -11,7 +11,7 @@ use Magento\Framework\App\ResourceConnection;
  * project snapshot at invoice-creation time so AmountGuard and the reverse
  * verifier have a trusted baseline, and so a changed order can renew its invoice.
  */
-final class InvoiceSnapshotRepository implements SnapshotRepositoryInterface
+class InvoiceSnapshotRepository implements SnapshotRepositoryInterface
 {
     private const TABLE = 'paymos_payment_invoice';
 

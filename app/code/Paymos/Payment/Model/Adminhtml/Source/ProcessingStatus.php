@@ -13,7 +13,7 @@ use Magento\Sales\Model\ResourceModel\Order\Status\CollectionFactory;
  * order status" admin field. A paid Paymos order is invoiced and moved to the
  * Processing state, so only Processing-state statuses are valid targets.
  */
-final class ProcessingStatus implements OptionSourceInterface
+class ProcessingStatus implements OptionSourceInterface
 {
     /** @var CollectionFactory */
     private $statusCollectionFactory;

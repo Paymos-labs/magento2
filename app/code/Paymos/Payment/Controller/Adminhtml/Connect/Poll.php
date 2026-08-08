@@ -10,7 +10,7 @@ use Magento\Store\Model\StoreManagerInterface;
 use Paymos\Connect\DeviceConnectClient;
 use Paymos\Payment\Service\CredentialStore;
 
-final class Poll extends Action
+class Poll extends Action
 {
     public const ADMIN_RESOURCE = 'Paymos_Payment::connect';
     private $jsonFactory;

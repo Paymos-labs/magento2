@@ -9,7 +9,7 @@ namespace Paymos\Payment\Service;
  * short body. The status codes are the contract the Paymos delivery worker's
  * retry logic depends on (2xx = stop retrying).
  */
-final class CallbackResult
+class CallbackResult
 {
     /** @var int */
     private $httpCode;

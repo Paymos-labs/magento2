@@ -20,7 +20,7 @@ use Magento\Sales\Model\Order\Payment;
  *
  * @see https://developer.adobe.com/commerce/php/development/payments-integrations/payment-gateway/
  */
-final class AuthorizeCommand implements CommandInterface
+class AuthorizeCommand implements CommandInterface
 {
     /**
      * @param array<string, mixed> $commandSubject

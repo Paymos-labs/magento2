@@ -34,7 +34,15 @@ use Paymos\Payment\Service\WebhookProcessor;
  *
  * @see Magento\Framework\App\CsrfAwareActionInterface
  */
-final class Callback implements HttpPostActionInterface, CsrfAwareActionInterface
+/**
+ * NOT final — and no class in this module may be.
+ *
+ * Magento generates an Interceptor subclass for every DI-resolved class so its
+ * plugins can wrap it; a final class makes that generated file fatal at include
+ * time. On a controller the fatal is served as HTTP 200, so Paymos reads a webhook
+ * delivery as successful and never retries — a payment is lost in silence.
+ */
+class Callback implements HttpPostActionInterface, CsrfAwareActionInterface
 {
     /** @var HttpRequest */
     private $request;

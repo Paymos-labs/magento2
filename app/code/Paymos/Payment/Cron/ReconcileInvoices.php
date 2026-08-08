@@ -17,7 +17,7 @@ use Paymos\Payment\Service\Settings;
  * the API (catches any webhook that never arrived). Wired in etc/crontab.xml.
  * No-op when no credentials are configured.
  */
-final class ReconcileInvoices
+class ReconcileInvoices
 {
     /** @var GeneratedConfigProvider */
     private $configProvider;

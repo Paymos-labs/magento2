@@ -29,7 +29,7 @@ use Paymos\Webhook\WebhookEvent;
  * timestamp skew->401, config error->500, any other failure->400. There is no
  * 202 — a 2xx tells the server to stop retrying.
  */
-final class WebhookProcessor
+class WebhookProcessor
 {
     /** @var Config */
     private $config;

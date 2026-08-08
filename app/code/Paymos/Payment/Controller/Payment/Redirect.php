@@ -25,7 +25,15 @@ use Paymos\Payment\Service\Settings;
  * Implements HttpGetActionInterface (the renderer navigates here after placing
  * the order). On any failure the customer is returned to the cart with a notice.
  */
-final class Redirect implements HttpGetActionInterface
+/**
+ * NOT final — and no class in this module may be.
+ *
+ * Magento generates an Interceptor subclass for every DI-resolved class so its
+ * plugins can wrap it; a final class makes that generated file fatal at include
+ * time. On a controller the fatal is served as HTTP 200, so Paymos reads a webhook
+ * delivery as successful and never retries — a payment is lost in silence.
+ */
+class Redirect implements HttpGetActionInterface
 {
     /** @var ResultFactory */
     private $resultFactory;

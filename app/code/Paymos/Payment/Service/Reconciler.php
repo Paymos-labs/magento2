@@ -17,7 +17,7 @@ use Paymos\Webhook\WebhookEvent;
  * cross-checked against the live invoice before applying, and the roll-back
  * guard + AmountGuard inside OrderMapper still protect the order.
  */
-final class Reconciler
+class Reconciler
 {
     /** @var Config */
     private $config;

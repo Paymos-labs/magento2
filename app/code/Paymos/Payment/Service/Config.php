@@ -7,7 +7,7 @@ namespace Paymos\Payment\Service;
 use Paymos\ClientConfig;
 
 /** Immutable Paymos configuration sourced from Magento's encrypted config store. */
-final class Config
+class Config
 {
     /** @var array<string, Environment> */
     private $environments;
