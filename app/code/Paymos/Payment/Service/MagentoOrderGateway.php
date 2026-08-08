@@ -89,6 +89,16 @@ class MagentoOrderGateway implements MagentoOrderGatewayInterface
             return;
         }
 
+        // A redirect gateway parks the order in "payment review" while the buyer
+        // pays, and Magento refuses to invoice an order in that state. This webhook
+        // IS the outcome of that review, so lift the order out of it BEFORE asking
+        // canInvoice() — otherwise the invoice is silently skipped and the order
+        // ends up in a paid status with no payment recorded and no invoice
+        // document at all, which is what a live 2.4.7-p3 store did on every order.
+        if ($order->isPaymentReview()) {
+            $order->setState(Order::STATE_PROCESSING);
+        }
+
         if ($order->canInvoice()) {
             $payment = $order->getPayment();
             if ($payment !== null) {
