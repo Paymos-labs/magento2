@@ -4,6 +4,11 @@ All notable changes to the Paymos Magento 2 payment module are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.7] - 2026-08-08
+
+- fix(magento): record the payment instead of silently skipping the invoice
+- chore: bundle Paymos PHP SDK v1.3.2
+
 ## [1.2.6] - 2026-08-08
 
 - fix(magento): drop final so Magento can actually route to the module
