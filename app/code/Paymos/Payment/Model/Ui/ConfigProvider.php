@@ -15,7 +15,7 @@ use Magento\Payment\Gateway\Config\Config as GatewayConfig;
  *
  * @see https://developer.adobe.com/commerce/php/development/payments-integrations/base-integration/
  */
-final class ConfigProvider implements ConfigProviderInterface
+class ConfigProvider implements ConfigProviderInterface
 {
     public const CODE = 'paymos';
 

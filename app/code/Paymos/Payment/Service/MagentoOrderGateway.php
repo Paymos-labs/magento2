@@ -23,7 +23,7 @@ use Magento\Sales\Model\Service\InvoiceService;
  * @see Magento\Sales\Model\Service\InvoiceService::prepareInvoice
  * @see Magento\Sales\Model\Order (STATE_PROCESSING, STATE_CANCELED, cancel())
  */
-final class MagentoOrderGateway implements MagentoOrderGatewayInterface
+class MagentoOrderGateway implements MagentoOrderGatewayInterface
 {
     /** @var OrderRepositoryInterface */
     private $orderRepository;

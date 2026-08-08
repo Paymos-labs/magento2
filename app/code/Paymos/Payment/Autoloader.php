@@ -11,7 +11,7 @@ namespace Paymos\Payment;
  * under the module's vendor/ directory; the Composer install provides the SDK on
  * the global autoloader, so this is skipped (see registration.php).
  */
-final class Autoloader
+class Autoloader
 {
     /** @var bool */
     private static $registered = false;

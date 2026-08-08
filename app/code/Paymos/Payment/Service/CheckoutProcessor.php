@@ -23,7 +23,7 @@ use Paymos\Client;
  * reused while the amount/currency snapshot matches; a renew suffix is appended
  * when the order amount changed, so a changed order gets a fresh invoice.
  */
-final class CheckoutProcessor
+class CheckoutProcessor
 {
     /** @var Config */
     private $config;

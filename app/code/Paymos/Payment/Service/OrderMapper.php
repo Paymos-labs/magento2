@@ -28,7 +28,7 @@ use Paymos\Webhook\WebhookEvent;
  * A roll-back guard stops a late cancelled/confirming/underpaid from
  * downgrading an order that is already paid.
  */
-final class OrderMapper
+class OrderMapper
 {
     /** @var MagentoOrderGatewayInterface */
     private $gateway;

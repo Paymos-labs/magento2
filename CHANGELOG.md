@@ -4,6 +4,10 @@ All notable changes to the Paymos Magento 2 payment module are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.6] - 2026-08-08
+
+- fix(magento): drop final so Magento can actually route to the module
+
 ## [1.2.5] - 2026-08-07
 
 - fix(magento): stop the module from breaking every payment method

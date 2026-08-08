@@ -11,6 +11,6 @@ use Monolog\Logger as MonologLogger;
  * Callers gate routine diagnostics on the admin "Debug logging" toggle;
  * operational failures are logged unconditionally.
  */
-final class Logger extends MonologLogger
+class Logger extends MonologLogger
 {
 }

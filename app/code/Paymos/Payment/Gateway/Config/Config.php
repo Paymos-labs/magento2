@@ -13,6 +13,6 @@ use Magento\Payment\Gateway\Config\Config as GatewayConfig;
  *
  * @see https://developer.adobe.com/commerce/php/development/payments-integrations/base-integration/
  */
-final class Config extends GatewayConfig
+class Config extends GatewayConfig
 {
 }

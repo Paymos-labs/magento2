@@ -8,7 +8,7 @@ namespace Paymos\Payment\Service;
  * One environment block (sandbox or live) of the generated Paymos config.
  * Immutable; base_url defaults to the public host when absent.
  */
-final class Environment
+class Environment
 {
     /** @var string */
     private $name;

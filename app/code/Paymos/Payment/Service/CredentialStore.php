@@ -11,7 +11,7 @@ use Magento\Framework\App\Cache\TypeListInterface;
 use Magento\Framework\Encryption\EncryptorInterface;
 use Paymos\Plugin\CredentialSet;
 
-final class CredentialStore
+class CredentialStore
 {
     private const CREDENTIALS_PATH = 'payment/paymos/credentials_v1';
     private const STATE_PATH = 'payment/paymos/connect_state_v1';

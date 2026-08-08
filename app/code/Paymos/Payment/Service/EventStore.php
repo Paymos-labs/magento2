@@ -24,7 +24,7 @@ use Paymos\Webhook\EventStoreInterface;
  *   release()  — DELETE the in-flight row so a processing failure does NOT block
  *                the server's retry of the same event.
  */
-final class EventStore implements EventStoreInterface
+class EventStore implements EventStoreInterface
 {
     private const TABLE = 'paymos_payment_event';
 

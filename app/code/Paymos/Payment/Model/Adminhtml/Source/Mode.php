@@ -10,7 +10,7 @@ use Magento\Framework\Data\OptionSourceInterface;
  * Sandbox / Live selector for the admin "Mode" field. The chosen mode decides
  * which environment block from the encrypted credential store is used.
  */
-final class Mode implements OptionSourceInterface
+class Mode implements OptionSourceInterface
 {
     /**
      * @return array<int, array<string, string>>

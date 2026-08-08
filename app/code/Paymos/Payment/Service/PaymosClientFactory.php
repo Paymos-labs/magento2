@@ -12,7 +12,7 @@ use Paymos\Client;
  * Centralises client construction so controllers and the webhook processor
  * share one factory (and tests can swap a fake via a callable).
  */
-final class PaymosClientFactory
+class PaymosClientFactory
 {
     /** @var GeneratedConfigProvider */
     private $configProvider;

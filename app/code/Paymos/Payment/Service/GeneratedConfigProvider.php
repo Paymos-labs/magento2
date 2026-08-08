@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Paymos\Payment\Service;
 
 /** Loads locally encrypted credentials once per request. */
-final class GeneratedConfigProvider
+class GeneratedConfigProvider
 {
     /** @var Config|null */
     private $cached;
