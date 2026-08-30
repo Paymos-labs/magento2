@@ -34,7 +34,7 @@ class CheckoutProcessor
     /** @var callable|null */
     private $clientFactory;
 
-    public function __construct(Config $config, SnapshotRepositoryInterface $snapshots, callable $clientFactory = null)
+    public function __construct(Config $config, SnapshotRepositoryInterface $snapshots, ?callable $clientFactory = null)
     {
         $this->config = $config;
         $this->snapshots = $snapshots;

@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Adobe Commerce Marketplace automated testing runs PHP_CodeSniffer with the
+  # Magento2 standard on the Marketplace component: the module tree WITHOUT the
+  # bundled-SDK fallback (Autoloader.php plus the marked block in
+  # registration.php are stripped by build-cms-store-submission.ps1). Reproduce
+  # that exact shape here and fail before a submission does. Warnings do not
+  # fail Adobe's automated review; only errors do, so the gate ignores them.
+  marketplace-phpcs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
+        with:
+          php-version: "8.3"
+          coverage: none
+      - name: Reproduce the Marketplace package shape
+        run: |
+          python3 - <<'EOF'
+          import pathlib
+          import re
+          import sys
+
+          module = pathlib.Path("app/code/Paymos/Payment")
+
+          autoloader = module / "Autoloader.php"
+          if not autoloader.is_file():
+              sys.exit(f"missing {autoloader}: the install-ZIP layout changed")
+          autoloader.unlink()
+
+          registration_path = module / "registration.php"
+          registration = registration_path.read_text()
+          stripped, count = re.subn(
+              r"\r?\n\r?\n// paymos:bundled-sdk-fallback:begin.*?// paymos:bundled-sdk-fallback:end\r?\n?",
+              "\n",
+              registration,
+              flags=re.S,
+          )
+          if count != 1:
+              sys.exit(f"expected exactly one marker block in {registration_path}, found {count}")
+          registration_path.write_text(stripped)
+          EOF
+          if grep -rnE '^\s*(require|include)(_once)?\b' app/code/Paymos/Payment --include='*.php'; then
+            echo "require/include survived the strip" >&2
+            exit 1
+          fi
+      - name: Install Magento coding standard
+        run: composer create-project magento/magento-coding-standard "$RUNNER_TEMP/mcs" --no-interaction --no-dev
+      - name: PHP_CodeSniffer (Magento2, errors only)
+        run: >-
+          "$RUNNER_TEMP/mcs/vendor/bin/phpcs"
+          --standard=Magento2 --extensions=php --warning-severity=0 --parallel=8
+          app/code/Paymos/Payment
+
+  # The module test suite runs under plain php-cli with Magento stubbed
+  # (tests/bootstrap.php); the SDK comes from the public php-sdk mirror, same
+  # way the release preflight feeds it (PAYMOS_SDK_SRC). The matrix covers the
+  # declared composer constraint 8.1–8.5 at both ends.
+  tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ["8.1", "8.5"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+      - name: Checkout the Paymos PHP SDK mirror
+        run: git clone --depth=1 https://github.com/paymos-labs/php-sdk "$RUNNER_TEMP/php-sdk"
+      - run: PAYMOS_SDK_SRC="$RUNNER_TEMP/php-sdk/src" php tests/run.php

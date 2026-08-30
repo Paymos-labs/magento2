@@ -39,7 +39,7 @@ class Reconciler
         SnapshotRepositoryInterface $snapshots,
         OrderMapper $orderMapper,
         Settings $settings,
-        callable $clientFactory = null
+        ?callable $clientFactory = null
     ) {
         $this->config = $config;
         $this->snapshots = $snapshots;
