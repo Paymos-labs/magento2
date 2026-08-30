@@ -33,9 +33,13 @@ class OrderMapper
     /** @var MagentoOrderGatewayInterface */
     private $gateway;
 
-    public function __construct(MagentoOrderGatewayInterface $gateway)
+    /** @var Settings */
+    private $settings;
+
+    public function __construct(MagentoOrderGatewayInterface $gateway, Settings $settings)
     {
         $this->gateway = $gateway;
+        $this->settings = $settings;
     }
 
     public function gateway(): MagentoOrderGatewayInterface
@@ -45,10 +49,9 @@ class OrderMapper
 
     /**
      * @param array<string, mixed> $row     Invoice snapshot row.
-     * @param string               $paidStatus Configured paid order status.
      * @return bool True when the order was marked paid by this call.
      */
-    public function apply(WebhookEvent $event, array $row, string $paidStatus, bool $notifyCustomer): bool
+    public function apply(WebhookEvent $event, array $row, bool $notifyCustomer): bool
     {
         $action = StatusMapper::invoiceAction($event->type(), $event->status());
         if ($action === StatusMapper::ACTION_IGNORE) {
@@ -74,7 +77,7 @@ class OrderMapper
 
         switch ($action) {
             case StatusMapper::ACTION_PAYMENT_COMPLETE:
-                return $this->complete($event, $row, $order, $paidStatus, $notifyCustomer);
+                return $this->complete($event, $row, $order, $notifyCustomer);
 
             case StatusMapper::ACTION_CONFIRMING:
                 $this->gateway->setStatus(
@@ -111,10 +114,10 @@ class OrderMapper
     }
 
     /**
-     * @param array{order_id:int, increment_id:string, amount:string, currency:string, state:string, status:string, is_paid:bool} $order
+     * @param array{order_id:int, store_id:int, increment_id:string, amount:string, currency:string, state:string, status:string, is_paid:bool} $order
      * @param array<string, mixed> $row
      */
-    private function complete(WebhookEvent $event, array $row, array $order, string $paidStatus, bool $notifyCustomer): bool
+    private function complete(WebhookEvent $event, array $row, array $order, bool $notifyCustomer): bool
     {
         if (!AmountGuard::isSafeToComplete(
             (string) $row['amount'],
@@ -143,6 +146,11 @@ class OrderMapper
             );
             return false;
         }
+
+        // The paid status is read per-store: a multi-store merchant can configure
+        // a different status per store view, and the default scope's value would
+        // silently leak into every other store.
+        $paidStatus = $this->settings->paidOrderStatus((int) $order['store_id']);
 
         $this->gateway->invoiceOrder(
             (int) $order['order_id'],

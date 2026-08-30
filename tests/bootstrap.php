@@ -14,6 +14,16 @@ declare(strict_types=1);
 
 error_reporting(E_ALL);
 
+// Any deprecation, notice or warning inside plugin code must fail the run:
+// Magento's setup:di:compile escalates PHP 8.4+ deprecations to fatals, and a
+// silent one here is exactly how the 1.2.9 Adobe rejection slipped through.
+set_error_handler(static function ($severity, $message, $file, $line) {
+    if (!(error_reporting() & $severity)) {
+        return false;
+    }
+    throw new ErrorException($message, 0, $severity, $file, $line);
+});
+
 define('PAYMOS_M2_PLUGIN_DIR', dirname(__DIR__) . DIRECTORY_SEPARATOR);
 define('PAYMOS_M2_MODULE_DIR', PAYMOS_M2_PLUGIN_DIR . 'app/code/Paymos/Payment/');
 
@@ -61,7 +71,21 @@ spl_autoload_register(static function ($class) {
 require __DIR__ . '/stubs/magento.php';
 
 // ── Test doubles ────────────────────────────────────────────────────────────
+
 require __DIR__ . '/stubs/doubles.php';
+
+/**
+ * Global test helper: real Settings over a per-store ScopeConfig double.
+ * Values like "payment/paymos/paid_order_status" or "payment/paymos/paid_order_status|7"
+ * (store 7 override).
+ *
+ * @param array<string, mixed> $values
+ * @return \Paymos\Payment\Service\Settings
+ */
+function paymos_m2_settings(array $values = array())
+{
+    return new \Paymos\Payment\Service\Settings(new \Paymos\Payment\Tests\FakeScopeConfig($values));
+}
 
 // ── Assertions ──────────────────────────────────────────────────────────────
 function assertSameValue($expected, $actual, $message)

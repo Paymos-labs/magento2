@@ -112,7 +112,7 @@ class Callback implements HttpPostActionInterface, CsrfAwareActionInterface
             $this->configProvider->get(),
             $this->snapshots,
             $this->eventStore,
-            new OrderMapper($this->orderGateway),
+            new OrderMapper($this->orderGateway, $this->settings),
             $this->clientFactory->asCallable()
         );
 
@@ -121,7 +121,6 @@ class Callback implements HttpPostActionInterface, CsrfAwareActionInterface
         $result = $processor->handle(
             $rawBody,
             $signature,
-            $this->settings->paidOrderStatus(),
             true
         );
 

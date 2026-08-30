@@ -46,17 +46,20 @@ class ConnectionStatus extends Field
         $webhookUrl = rtrim($this->_urlBuilder->getBaseUrl(), '/') . '/paymos/payment/callback';
 
         if ($env->isConfigured()) {
+            // Keys must be strings: __() returns a Phrase object, and an object
+            // cannot be an array key — the page would fatal with an illegal
+            // offset type before the merchant ever sees the Connect button.
             $rows = [
-                __('Status') => '<span style="color:#1e7e34;font-weight:600;">' . $this->escapeHtml(__('Connected (%1)', $mode)) . '</span>',
-                __('API key') => '<code>' . $this->escapeHtml($env->maskedApiKey()) . '</code>',
-                __('Project') => '<code>' . $this->escapeHtml($env->projectId()) . '</code>',
-                __('Webhook URL') => '<code>' . $this->escapeHtml($webhookUrl) . '</code>',
+                (string) __('Status') => '<span style="color:#1e7e34;font-weight:600;">' . $this->escapeHtml(__('Connected (%1)', $mode)) . '</span>',
+                (string) __('API key') => '<code>' . $this->escapeHtml($env->maskedApiKey()) . '</code>',
+                (string) __('Project') => '<code>' . $this->escapeHtml($env->projectId()) . '</code>',
+                (string) __('Webhook URL') => '<code>' . $this->escapeHtml($webhookUrl) . '</code>',
             ];
         } else {
             $rows = [
-                __('Status') => '<span style="color:#b30000;font-weight:600;">' . $this->escapeHtml(__('Not configured')) . '</span>',
-                __('Action') => $this->escapeHtml(__('Click Connect Paymos and approve this store in your Paymos dashboard.')),
-                __('Webhook URL') => '<code>' . $this->escapeHtml($webhookUrl) . '</code>',
+                (string) __('Status') => '<span style="color:#b30000;font-weight:600;">' . $this->escapeHtml(__('Not configured')) . '</span>',
+                (string) __('Action') => $this->escapeHtml(__('Click Connect Paymos and approve this store in your Paymos dashboard.')),
+                (string) __('Webhook URL') => '<code>' . $this->escapeHtml($webhookUrl) . '</code>',
             ];
         }
 

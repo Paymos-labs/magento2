@@ -18,7 +18,7 @@ interface MagentoOrderGatewayInterface
     /**
      * Order summary used by the mapper, or null when the order is missing.
      *
-     * @return array{order_id:int, increment_id:string, amount:string, currency:string, state:string, status:string, is_paid:bool}|null
+     * @return array{order_id:int, store_id:int, increment_id:string, amount:string, currency:string, state:string, status:string, is_paid:bool}|null
      */
     public function loadOrder(int $orderId);
 
@@ -57,4 +57,13 @@ interface MagentoOrderGatewayInterface
      * @return void
      */
     public function log(string $message, array $context = []);
+
+    /**
+     * Unconditional warning log: a FAILED webhook or reconcile must leave a
+     * trace in production, where the diagnostics flag behind log() is off.
+     *
+     * @param array<string, mixed> $context
+     * @return void
+     */
+    public function logFailure(string $message, array $context = []);
 }

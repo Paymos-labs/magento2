@@ -192,10 +192,11 @@ final class FakeOrderGateway implements MagentoOrderGatewayInterface
     /**
      * @param array<string, mixed>|null $order
      */
-    public function __construct(array $order = null)
+    public function __construct(?array $order = null)
     {
         $this->order = $order ?: array(
             'order_id' => 42,
+            'store_id' => 1,
             'increment_id' => '100000042',
             'amount' => '100.00',
             'currency' => 'USD',
@@ -209,6 +210,16 @@ final class FakeOrderGateway implements MagentoOrderGatewayInterface
     {
         if ($this->order !== null) {
             $this->order['is_paid'] = (bool) $paid;
+        }
+    }
+
+    /**
+     * @param int $storeId
+     */
+    public function setStoreId($storeId)
+    {
+        if ($this->order !== null) {
+            $this->order['store_id'] = (int) $storeId;
         }
     }
 
@@ -262,7 +273,12 @@ final class FakeOrderGateway implements MagentoOrderGatewayInterface
 
     public function log(string $message, array $context = array())
     {
-        $this->logs[] = array('message' => $message, 'context' => $context);
+        $this->logs[] = array('level' => 'debug', 'message' => $message, 'context' => $context);
+    }
+
+    public function logFailure(string $message, array $context = array())
+    {
+        $this->logs[] = array('level' => 'warning', 'message' => $message, 'context' => $context);
     }
 
     /**
@@ -456,7 +472,7 @@ final class FakeClient
     /** @var FakeInvoices */
     public $invoices;
 
-    public function __construct(FakeInvoices $invoices = null)
+    public function __construct(?FakeInvoices $invoices = null)
     {
         $this->invoices = $invoices ?: new FakeInvoices();
     }
@@ -464,5 +480,64 @@ final class FakeClient
     public function invoices()
     {
         return $this->invoices;
+    }
+}
+
+
+/**
+ * ScopeConfig double with per-store overrides: values["<path>|<storeId>"]
+ * win over values["<path>"] for the default scope.
+ */
+final class FakeScopeConfig implements \Magento\Framework\App\Config\ScopeConfigInterface
+{
+    /** @var array<string, mixed> */
+    private $values;
+
+    /**
+     * @param array<string, mixed> $values
+     */
+    public function __construct(array $values = array())
+    {
+        $this->values = $values;
+    }
+
+    public function getValue($path, $scope = null, $scopeId = null)
+    {
+        if ($scopeId !== null && array_key_exists($path . '|' . $scopeId, $this->values)) {
+            return $this->values[$path . '|' . $scopeId];
+        }
+
+        return array_key_exists($path, $this->values) ? $this->values[$path] : null;
+    }
+
+    public function isSetFlag($path, $scope = null, $scopeId = null)
+    {
+        return (bool) $this->getValue($path, $scope, $scopeId);
+    }
+}
+
+final class FakeCredentialStore extends \Paymos\Payment\Service\CredentialStore
+{
+    public function __construct()
+    {
+        // deliberately skip the Magento-typed parent constructor
+    }
+
+    public function loadCredentials(): array
+    {
+        return array(
+            'sandbox' => array(
+                'base_url' => 'https://api.paymos.io',
+                'api_key' => 'pk_test_abcdefghij',
+                'api_secret' => 'rk_test_abcdefghij',
+                'project_id' => 'prj_test123',
+                'webhook_secret' => 'whsec_test_secret',
+            ),
+        );
+    }
+
+    public function loadState(): array
+    {
+        return array();
     }
 }

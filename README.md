@@ -9,7 +9,7 @@ store.
 ## Requirements
 
 - Magento Open Source or Adobe Commerce 2.4 — the module requires `magento/framework` 103.0 or newer
-- PHP 8.1, 8.2, 8.3, 8.4 or 8.5
+- PHP 8.3, 8.4 or 8.5 (Adobe Commerce 2.4.9 dropped 8.1/8.2)
 - Shell access for `bin/magento`
 - A storefront served over HTTPS; the connect flow refuses a plain-HTTP base URL
 - A Paymos account, with the project you want to bind open in the dashboard

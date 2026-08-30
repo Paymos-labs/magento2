@@ -73,6 +73,7 @@ class MagentoOrderGateway implements MagentoOrderGatewayInterface
 
         return [
             'order_id' => (int) $order->getEntityId(),
+            'store_id' => (int) $order->getStoreId(),
             'increment_id' => (string) $order->getIncrementId(),
             'amount' => number_format((float) $order->getGrandTotal(), 2, '.', ''),
             'currency' => strtoupper((string) $order->getOrderCurrencyCode()),
@@ -118,7 +119,7 @@ class MagentoOrderGateway implements MagentoOrderGatewayInterface
                 try {
                     $this->invoiceSender->send($invoice);
                 } catch (\Exception $e) {
-                    $this->logUnconditional('Paymos could not send the invoice email.', ['error' => $e->getMessage()]);
+                    $this->logFailure('Paymos could not send the invoice email.', ['error' => $e->getMessage()]);
                 }
             }
         }
@@ -184,7 +185,7 @@ class MagentoOrderGateway implements MagentoOrderGatewayInterface
     /**
      * @param array<string, mixed> $context
      */
-    private function logUnconditional(string $message, array $context = []): void
+    public function logFailure(string $message, array $context = []): void
     {
         $this->logger->warning($message, $context);
     }
