@@ -51,7 +51,7 @@ class WebhookProcessor
         SnapshotRepositoryInterface $snapshots,
         EventStoreInterface $eventStore,
         OrderMapper $orderMapper,
-        callable $clientFactory = null
+        ?callable $clientFactory = null
     ) {
         $this->config = $config;
         $this->snapshots = $snapshots;
