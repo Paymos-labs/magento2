@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
         with:
-          php-version: "8.3"
+          php-version: "8.5"
           coverage: none
       - name: Reproduce the Marketplace package shape
         run: |
@@ -62,18 +62,18 @@ jobs:
       - name: PHP_CodeSniffer (Magento2, errors only)
         run: >-
           "$RUNNER_TEMP/mcs/vendor/bin/phpcs"
-          --standard=Magento2 --extensions=php --warning-severity=0 --parallel=8
+          --standard=Magento2 --warning-severity=0 --parallel=8
           app/code/Paymos/Payment
 
   # The module test suite runs under plain php-cli with Magento stubbed
   # (tests/bootstrap.php); the SDK comes from the public php-sdk mirror, same
   # way the release preflight feeds it (PAYMOS_SDK_SRC). The matrix covers the
-  # declared composer constraint 8.1–8.5 at both ends.
+  # declared composer constraint 8.3–8.5 at both ends.
   tests:
     strategy:
       fail-fast: false
       matrix:
-        php: ["8.1", "8.5"]
+        php: ["8.3", "8.5"]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6

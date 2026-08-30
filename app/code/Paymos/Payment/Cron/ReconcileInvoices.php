@@ -58,8 +58,9 @@ class ReconcileInvoices
         $reconciler = new Reconciler(
             $config,
             $this->snapshots,
-            new OrderMapper($this->orderGateway),
-            $this->settings,
+            // Settings goes to the mapper, which resolves the paid status per the
+            // order's own store; the reconciler itself no longer reads config.
+            new OrderMapper($this->orderGateway, $this->settings),
             $this->clientFactory->asCallable()
         );
 

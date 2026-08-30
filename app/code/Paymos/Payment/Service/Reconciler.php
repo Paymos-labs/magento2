@@ -28,9 +28,6 @@ class Reconciler
     /** @var OrderMapper */
     private $orderMapper;
 
-    /** @var Settings */
-    private $settings;
-
     /** @var callable|null */
     private $clientFactory;
 
@@ -38,13 +35,11 @@ class Reconciler
         Config $config,
         SnapshotRepositoryInterface $snapshots,
         OrderMapper $orderMapper,
-        Settings $settings,
         ?callable $clientFactory = null
     ) {
         $this->config = $config;
         $this->snapshots = $snapshots;
         $this->orderMapper = $orderMapper;
-        $this->settings = $settings;
         $this->clientFactory = $clientFactory;
     }
 
@@ -73,11 +68,11 @@ class Reconciler
                     'data' => $invoice,
                 ]);
 
-                if ($this->orderMapper->apply($event, $row, $this->settings->paidOrderStatus(), false)) {
+                if ($this->orderMapper->apply($event, $row, false)) {
                     $applied++;
                 }
             } catch (\Throwable $e) {
-                $this->orderMapper->gateway()->log('Paymos reconcile failed for an invoice.', [
+                $this->orderMapper->gateway()->logFailure('Paymos reconcile failed for an invoice.', [
                     'paymos_invoice_id' => (string) $row['paymos_invoice_id'],
                     'error' => $e->getMessage(),
                 ]);
@@ -104,7 +99,11 @@ class Reconciler
         $expected = trim($expected);
         $actual = trim($actual);
 
-        return $expected === '' || $actual === '' || $expected === $actual;
+        // An empty ACTUAL value with a non-empty expected one is a mismatch, not a
+        // pass: when the API response shape changes, the snapshot guard must fail
+        // closed instead of rubber-stamping whatever arrives. An empty expected
+        // value (field absent from the snapshot) stays a skip.
+        return $expected === '' || ($actual !== '' && $expected === $actual);
     }
 
     private function eventTypeForStatus(string $status): string

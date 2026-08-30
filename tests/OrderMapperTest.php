@@ -9,10 +9,10 @@ use Paymos\Webhook\WebhookEvent;
 function test_magento_mapper_invoices_order_on_paid()
 {
     $gateway = new FakeOrderGateway();
-    $mapper = new OrderMapper($gateway);
+    $mapper = new OrderMapper($gateway, paymos_m2_settings(array('payment/paymos/paid_order_status' => 'processing')));
 
     $event = new WebhookEvent(paymos_m2_invoice_event('evt_paid', 'invoice.paid', 'paid'));
-    $paid = $mapper->apply($event, paymos_m2_snapshot(), 'processing', true);
+    $paid = $mapper->apply($event, paymos_m2_snapshot(), true);
 
     assertTrueValue($paid, 'invoice.paid must report a completed payment.');
     $invoiced = $gateway->opsOfType('invoice');
@@ -24,7 +24,7 @@ function test_magento_mapper_invoices_order_on_paid()
 function test_magento_mapper_uses_confirmed_transfer_hash_as_transaction_id()
 {
     $gateway = new FakeOrderGateway();
-    $mapper = new OrderMapper($gateway);
+    $mapper = new OrderMapper($gateway, paymos_m2_settings(array('payment/paymos/paid_order_status' => 'processing')));
 
     $event = new WebhookEvent(paymos_m2_invoice_event('evt_paid', 'invoice.paid', 'paid', array(
         'data' => array(
@@ -36,7 +36,7 @@ function test_magento_mapper_uses_confirmed_transfer_hash_as_transaction_id()
             ),
         ),
     )));
-    $mapper->apply($event, paymos_m2_snapshot(), 'processing', true);
+    $mapper->apply($event, paymos_m2_snapshot(), true);
 
     $invoiced = $gateway->opsOfType('invoice');
     assertSameValue('0xlatest', $invoiced[0]['transaction_id'], 'The last confirmed transfer hash must be the transaction id.');
@@ -45,10 +45,10 @@ function test_magento_mapper_uses_confirmed_transfer_hash_as_transaction_id()
 function test_magento_mapper_invoices_order_on_paid_over()
 {
     $gateway = new FakeOrderGateway();
-    $mapper = new OrderMapper($gateway);
+    $mapper = new OrderMapper($gateway, paymos_m2_settings(array('payment/paymos/paid_order_status' => 'processing')));
 
     $event = new WebhookEvent(paymos_m2_invoice_event('evt_over', 'invoice.paid_over', 'paid_over'));
-    $paid = $mapper->apply($event, paymos_m2_snapshot(), 'processing', true);
+    $paid = $mapper->apply($event, paymos_m2_snapshot(), true);
 
     assertTrueValue($paid, 'invoice.paid_over must also complete the order.');
     assertSameValue(1, count($gateway->opsOfType('invoice')), 'paid_over must invoice the order.');
@@ -58,14 +58,14 @@ function test_magento_mapper_holds_order_on_amount_mismatch()
 {
     $gateway = new FakeOrderGateway();
     $gateway->setAmount('250.00'); // order total changed after invoice creation
-    $mapper = new OrderMapper($gateway);
+    $mapper = new OrderMapper($gateway, paymos_m2_settings(array('payment/paymos/paid_order_status' => 'processing')));
 
     $event = new WebhookEvent(paymos_m2_invoice_event('evt_paid', 'invoice.paid', 'paid'));
 
     // An amount mismatch must NOT throw (that would 400 and the server would retry
     // forever, re-adding the comment each time). It holds for manual review and
     // returns false so the webhook is acknowledged.
-    $paid = $mapper->apply($event, paymos_m2_snapshot(), 'processing', true);
+    $paid = $mapper->apply($event, paymos_m2_snapshot(), true);
 
     assertFalseValue($paid, 'An amount mismatch must not mark the order paid.');
     assertSameValue(0, count($gateway->opsOfType('invoice')), 'A mismatched order must NOT be invoiced.');
@@ -75,10 +75,10 @@ function test_magento_mapper_holds_order_on_amount_mismatch()
 function test_magento_mapper_confirming_sets_status_without_invoicing()
 {
     $gateway = new FakeOrderGateway();
-    $mapper = new OrderMapper($gateway);
+    $mapper = new OrderMapper($gateway, paymos_m2_settings(array('payment/paymos/paid_order_status' => 'processing')));
 
     $event = new WebhookEvent(paymos_m2_invoice_event('evt_conf', 'invoice.confirming', 'confirming'));
-    $paid = $mapper->apply($event, paymos_m2_snapshot(), 'processing', true);
+    $paid = $mapper->apply($event, paymos_m2_snapshot(), true);
 
     assertFalseValue($paid, 'confirming must not complete the order.');
     assertSameValue(0, count($gateway->opsOfType('invoice')), 'confirming must not invoice.');
@@ -88,10 +88,10 @@ function test_magento_mapper_confirming_sets_status_without_invoicing()
 function test_magento_mapper_expired_cancels_unpaid_order()
 {
     $gateway = new FakeOrderGateway();
-    $mapper = new OrderMapper($gateway);
+    $mapper = new OrderMapper($gateway, paymos_m2_settings(array('payment/paymos/paid_order_status' => 'processing')));
 
     $event = new WebhookEvent(paymos_m2_invoice_event('evt_exp', 'invoice.expired', 'expired'));
-    $mapper->apply($event, paymos_m2_snapshot(), 'processing', true);
+    $mapper->apply($event, paymos_m2_snapshot(), true);
 
     assertSameValue(1, count($gateway->opsOfType('cancel')), 'expired must cancel an unpaid order.');
 }
@@ -99,10 +99,10 @@ function test_magento_mapper_expired_cancels_unpaid_order()
 function test_magento_mapper_underpaid_fails_order()
 {
     $gateway = new FakeOrderGateway();
-    $mapper = new OrderMapper($gateway);
+    $mapper = new OrderMapper($gateway, paymos_m2_settings(array('payment/paymos/paid_order_status' => 'processing')));
 
     $event = new WebhookEvent(paymos_m2_invoice_event('evt_under', 'invoice.underpaid', 'underpaid'));
-    $mapper->apply($event, paymos_m2_snapshot(), 'processing', true);
+    $mapper->apply($event, paymos_m2_snapshot(), true);
 
     assertSameValue(1, count($gateway->opsOfType('cancel')), 'underpaid must cancel the order.');
 }
@@ -111,10 +111,10 @@ function test_magento_mapper_roll_back_guard_ignores_late_cancel_after_paid()
 {
     $gateway = new FakeOrderGateway();
     $gateway->setPaid(true); // order already paid
-    $mapper = new OrderMapper($gateway);
+    $mapper = new OrderMapper($gateway, paymos_m2_settings(array('payment/paymos/paid_order_status' => 'processing')));
 
     $event = new WebhookEvent(paymos_m2_invoice_event('evt_late', 'invoice.cancelled', 'cancelled'));
-    $paid = $mapper->apply($event, paymos_m2_snapshot(), 'processing', true);
+    $paid = $mapper->apply($event, paymos_m2_snapshot(), true);
 
     assertFalseValue($paid, 'A late cancel must not report a completion.');
     assertSameValue(0, count($gateway->opsOfType('cancel')), 'A late cancel must NOT downgrade an already-paid order.');
@@ -124,11 +124,11 @@ function test_magento_mapper_roll_back_guard_ignores_late_cancel_after_paid()
 function test_magento_mapper_ignore_does_nothing()
 {
     $gateway = new FakeOrderGateway();
-    $mapper = new OrderMapper($gateway);
+    $mapper = new OrderMapper($gateway, paymos_m2_settings(array('payment/paymos/paid_order_status' => 'processing')));
 
     // An unknown event type maps to ACTION_IGNORE.
     $event = new WebhookEvent(paymos_m2_invoice_event('evt_x', 'invoice.unknown', ''));
-    $paid = $mapper->apply($event, paymos_m2_snapshot(), 'processing', true);
+    $paid = $mapper->apply($event, paymos_m2_snapshot(), true);
 
     assertFalseValue($paid, 'An ignored event must not complete the order.');
     assertSameValue(0, count($gateway->calls), 'An ignored event must not mutate the order.');
@@ -138,16 +138,33 @@ function test_magento_mapper_missing_order_throws()
 {
     $gateway = new FakeOrderGateway();
     $gateway->clearOrder();
-    $mapper = new OrderMapper($gateway);
+    $mapper = new OrderMapper($gateway, paymos_m2_settings(array('payment/paymos/paid_order_status' => 'processing')));
 
     $event = new WebhookEvent(paymos_m2_invoice_event('evt_paid', 'invoice.paid', 'paid'));
 
     $threw = false;
     try {
-        $mapper->apply($event, paymos_m2_snapshot(), 'processing', true);
+        $mapper->apply($event, paymos_m2_snapshot(), true);
     } catch (\RuntimeException $e) {
         $threw = true;
     }
 
     assertTrueValue($threw, 'A missing order must throw so the server retries.');
+}
+
+function test_magento_mapper_paid_status_is_store_scoped()
+{
+    $gateway = new FakeOrderGateway();
+    $gateway->setStoreId(7);
+    $settings = paymos_m2_settings(array(
+        'payment/paymos/paid_order_status' => 'processing',        // default scope
+        'payment/paymos/paid_order_status|7' => 'complete_store7', // store 7 override
+    ));
+    $mapper = new OrderMapper($gateway, $settings);
+
+    $event = new WebhookEvent(paymos_m2_invoice_event('evt_paid7', 'invoice.paid', 'paid'));
+    $mapper->apply($event, paymos_m2_snapshot(), true);
+
+    $invoiced = $gateway->opsOfType('invoice');
+    assertSameValue('complete_store7', $invoiced[0]['paid_status'], 'The paid status must come from the order\'s own store scope, not the default scope.');
 }

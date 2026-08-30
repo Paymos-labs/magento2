@@ -60,7 +60,7 @@ class WebhookProcessor
         $this->clientFactory = $clientFactory;
     }
 
-    public function handle($rawBody, $signatureHeader, string $paidStatus, bool $notifyCustomer, $now = null): CallbackResult
+    public function handle($rawBody, $signatureHeader, bool $notifyCustomer, $now = null): CallbackResult
     {
         try {
             $verified = (new MultiEnvironmentWebhookVerifier($this->config->webhookSecrets(), $this->eventStore))
@@ -74,7 +74,7 @@ class WebhookProcessor
             }
 
             $this->assertPayloadEnvironment($event, $environment);
-            $this->applyVerifiedEvent($event, $environment, $paidStatus, $notifyCustomer);
+            $this->applyVerifiedEvent($event, $environment, $notifyCustomer);
             $this->commitEvent();
 
             return new CallbackResult(200, 'OK');
@@ -86,19 +86,19 @@ class WebhookProcessor
             return new CallbackResult(401, 'Bad timestamp');
         } catch (\InvalidArgumentException $e) {
             $this->releaseEvent();
-            $this->orderMapper->gateway()->log('Paymos Magento configuration error.', ['error' => $e->getMessage()]);
+            $this->orderMapper->gateway()->logFailure('Paymos Magento configuration error.', ['error' => $e->getMessage()]);
             return new CallbackResult(500, 'Configuration error');
         } catch (\Throwable $e) {
             // A RuntimeException (snapshot/order/reverse-verify/amount) OR any
             // PHP Error during mutation must still release the in-flight dedup
             // lock, otherwise the event is durably marked seen and never retried.
             $this->releaseEvent();
-            $this->orderMapper->gateway()->log('Paymos Magento webhook processing failed.', ['error' => $e->getMessage()]);
+            $this->orderMapper->gateway()->logFailure('Paymos Magento webhook processing failed.', ['error' => $e->getMessage()]);
             return new CallbackResult(400, 'Processing failed');
         }
     }
 
-    private function applyVerifiedEvent(WebhookEvent $event, string $environment, string $paidStatus, bool $notifyCustomer): void
+    private function applyVerifiedEvent(WebhookEvent $event, string $environment, bool $notifyCustomer): void
     {
         $externalOrderId = $event->externalOrderId();
         if ($externalOrderId === '') {
@@ -129,7 +129,7 @@ class WebhookProcessor
         // apply() throws (e.g. AmountGuard holds the order for manual review), the
         // event is released for retry and the snapshot status must NOT be advanced
         // to a terminal value the order never actually reached.
-        $this->orderMapper->apply($event, $row, $paidStatus, $notifyCustomer);
+        $this->orderMapper->apply($event, $row, $notifyCustomer);
 
         $this->snapshots->updateStatus($event->invoiceId(), $event->status());
     }

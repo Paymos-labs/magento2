@@ -1,0 +1,177 @@
+name: di-compile
+
+# Adobe's mandatory "Installation & Varnish" test in miniature: a real Magento
+# Open Source install, the module in the exact shape Adobe receives, then the six
+# release steps — setup:upgrade, di:compile, static-content deploy, production
+# mode, reindex. Expensive on purpose (~850 MB of composer), so it runs on
+# release tags and on demand, never on PRs.
+#
+# No Adobe keys are used anywhere: repo.magento.com answers 401 without a
+# Marketplace account, so the project is pointed at the public Mage-OS mirror,
+# which serves magento/product-community-edition unauthenticated.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Module version to build and install (no leading v)'
+        required: true
+        default: '1.2.10'
+      magento:
+        description: 'Magento Open Source version'
+        required: true
+        default: '2.4.9'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: di-compile-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  magento-install-and-compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: magento
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+      opensearch:
+        image: opensearchproject/opensearch:2.19.0
+        env:
+          discovery.type: single-node
+          DISABLE_SECURITY_PLUGIN: 'true'
+          DISABLE_INSTALL_DEMO_CONFIG: 'true'
+          OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
+        ports: ['9200:9200']
+        options: >-
+          --health-cmd="curl -fs http://localhost:9200/_cluster/health"
+          --health-interval=20s --health-timeout=10s --health-retries=15
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
+        with:
+          php-version: '8.5'
+          extensions: intl, bcmath, gd, soap, sockets, zip, xsl, sodium, pdo_mysql, mbstring, curl, dom, simplexml, xmlwriter, ftp
+          coverage: none
+
+      - name: Resolve versions
+        id: v
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "module=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+            echo "magento=${{ inputs.magento }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "module=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+            echo "magento=2.4.9" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Adobe never receives app/code — it receives a root Composer component with
+      # the bundled-SDK fallback stripped. Install exactly that, or this gate
+      # tests an artifact nobody ships. Same strip as marketplace-phpcs in ci.yml.
+      - name: Assemble the Marketplace-shaped module
+        run: |
+          python3 - "${{ steps.v.outputs.module }}" <<'EOF'
+          import json, pathlib, re, shutil, sys
+
+          version = sys.argv[1]
+          source = pathlib.Path("app/code/Paymos/Payment")
+          target = pathlib.Path("/tmp/paymos-magento2-module")
+          if target.exists():
+              shutil.rmtree(target)
+          shutil.copytree(source, target)
+
+          autoloader = target / "Autoloader.php"
+          if not autoloader.is_file():
+              sys.exit("missing Autoloader.php: the install-ZIP layout changed")
+          autoloader.unlink()
+          shutil.rmtree(target / "vendor", ignore_errors=True)
+
+          registration = target / "registration.php"
+          stripped, count = re.subn(
+              r"\r?\n\r?\n// paymos:bundled-sdk-fallback:begin.*?// paymos:bundled-sdk-fallback:end\r?\n?",
+              "\n",
+              registration.read_text(),
+              flags=re.S,
+          )
+          if count != 1:
+              sys.exit(f"expected exactly one marker block in registration.php, found {count}")
+          registration.write_text(stripped)
+
+          # build-cms-store-submission.ps1 stamps the version into the package;
+          # a path repository resolves the version from this field, so stamp it
+          # the same way instead of hoping Composer guesses from the tag.
+          manifest = target / "composer.json"
+          data = json.loads(manifest.read_text())
+          if data.get("type") != "magento2-module":
+              sys.exit("module composer.json must be type magento2-module")
+          data["version"] = version
+          manifest.write_text(json.dumps(data, indent=4) + "\n")
+          EOF
+          ! grep -rnE '^\s*(require|include)(_once)?\b' /tmp/paymos-magento2-module --include='*.php'
+
+      - name: Create the Magento project from the Mage-OS mirror
+        run: |
+          composer create-project --no-install --no-interaction \
+            --repository-url=https://mirror.mage-os.org/ \
+            "magento/project-community-edition=${{ steps.v.outputs.magento }}" magento
+
+      # create-project leaves repo.magento.com in the project manifest, and every
+      # later resolve would 401 against it. Replace the repository set outright.
+      - name: Point the project at the mirror and add the module as a path repo
+        working-directory: magento
+        run: |
+          python3 - <<'EOF'
+          import json, pathlib
+          manifest = pathlib.Path("composer.json")
+          data = json.loads(manifest.read_text())
+          data["repositories"] = {
+              "mageos": {"type": "composer", "url": "https://mirror.mage-os.org/"},
+              "paymos": {
+                  "type": "path",
+                  "url": "/tmp/paymos-magento2-module",
+                  "options": {"symlink": False},
+              },
+          }
+          config = data.setdefault("config", {})
+          config["allow-plugins"] = True
+          manifest.write_text(json.dumps(data, indent=4) + "\n")
+          EOF
+          composer require --no-interaction \
+            "paymos/magento2-payment:${{ steps.v.outputs.module }}"
+
+      - name: Install Magento
+        working-directory: magento
+        run: |
+          php bin/magento setup:install \
+            --base-url="http://localhost:8080/" \
+            --db-host=127.0.0.1 --db-name=magento --db-user=root --db-password=root \
+            --admin-firstname=Paymos --admin-lastname=QA --admin-email=qa@paymos.io \
+            --admin-user=admin --admin-password=paymos1234_QA \
+            --language=en_US --currency=USD --timezone=UTC \
+            --search-engine=opensearch \
+            --opensearch-host=127.0.0.1 --opensearch-port=9200 \
+            --opensearch-index-prefix=magento --opensearch-timeout=30 \
+            --use-rewrites=1 --no-interaction
+
+      - name: The module is actually enabled
+        working-directory: magento
+        run: php bin/magento module:status Paymos_Payment | tee /dev/stderr | grep -q 'enabled'
+
+      - name: Upgrade, compile, deploy, production mode, reindex (Adobe's six steps)
+        working-directory: magento
+        run: |
+          php bin/magento setup:upgrade --no-interaction
+          php bin/magento setup:di:compile --no-interaction
+          php bin/magento setup:static-content:deploy -f --no-interaction
+          php bin/magento deploy:mode:set production --no-interaction
+          php bin/magento indexer:reindex
