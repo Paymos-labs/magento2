@@ -6,6 +6,11 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.2.12] - 2026-09-17
+
+- changelog(magento2): v1.2.12 — resubmission of 1.2.11 после инфраструктурного сбоя автотеста Adobe
+- chore: bundle Paymos PHP SDK v1.4.1
+
 ## [1.2.11] - 2026-08-30
 
 - fix(plugins): гейт di:compile теперь запускается, а CS-Cart больше не конвертирует таблицу до её создания
