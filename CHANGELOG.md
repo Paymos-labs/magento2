@@ -6,6 +6,10 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.2.13] - 2026-09-21
+
+- chore: rebuild canonical CMS package
+
 ## [1.2.12] - 2026-09-17
 
 - changelog(magento2): v1.2.12 — resubmission of 1.2.11 после инфраструктурного сбоя автотеста Adobe
