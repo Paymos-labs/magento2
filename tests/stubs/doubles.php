@@ -466,16 +466,67 @@ final class FakeInvoices
         );
     }
 
+    /** @var array<int, string> every call in order: "create", "get <id>", "cancel <id>" */
+    public $calls = array();
+
+    /** @var \Exception|null thrown by cancel() instead of answering */
+    public $cancelException;
+
+    /** @var \Exception|null thrown by get() instead of answering */
+    public $getException;
+
     public function create(array $payload)
     {
+        $this->calls[] = 'create';
         $this->createPayloads[] = $payload;
         return $this->createResponse;
     }
 
     public function get($invoiceId)
     {
+        $this->calls[] = 'get ' . $invoiceId;
+        if ($this->getException !== null) {
+            throw $this->getException;
+        }
+
         return $this->getResponse;
     }
+
+    /**
+     * Like the server (CancelInvoiceHandler): awaiting_client becomes
+     * cancelled, a cancelled invoice answers again, anything else is a 409.
+     */
+    public function cancel($invoiceId, $reason)
+    {
+        $this->calls[] = 'cancel ' . $invoiceId;
+        if ($this->cancelException !== null) {
+            throw $this->cancelException;
+        }
+        $status = isset($this->getResponse['status']) ? (string) $this->getResponse['status'] : '';
+        if ($status !== 'awaiting_client' && $status !== 'cancelled') {
+            throw paymos_m2_api_error(409, 'invoice_cannot_be_cancelled', 'Invoice cannot be cancelled in status ' . $status . '.');
+        }
+        $this->getResponse['status'] = 'cancelled';
+
+        return $this->getResponse;
+    }
+}
+
+/** @return array<int, string> */
+function paymos_m2_calls(FakeInvoices $invoices)
+{
+    return $invoices->calls;
+}
+
+function paymos_m2_api_error($status, $code, $detail)
+{
+    return \Paymos\Exception\ApiException::fromResponse($status, json_encode(array(
+        'type' => 'https://paymos.io/errors/' . $code,
+        'title' => 'Error',
+        'status' => $status,
+        'detail' => $detail,
+        'code' => $code,
+    )), array());
 }
 
 /**

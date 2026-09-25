@@ -30,3 +30,4 @@
 "We could not start the crypto payment: %1","无法发起加密货币付款：%1"
 "We could not start the crypto payment. Please choose another method.","无法发起加密货币付款，请选择其他支付方式。"
 "Place Order","提交订单"
+"The store needs to review this order before payment can continue. Please contact the store.","商家需要先审核这笔订单，之后才能继续付款。请联系商家。"

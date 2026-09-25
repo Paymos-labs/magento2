@@ -7,6 +7,8 @@ namespace Paymos\Payment\Service;
 use Paymos\Client;
 use Paymos\Exception\NotFoundException;
 use Paymos\Plugin\InvoiceRenewal;
+use Paymos\Plugin\InvoiceReplacement;
+use Paymos\Plugin\InvoiceReplacementBlockedException;
 use Paymos\Plugin\StatusMapper;
 
 /**
@@ -73,6 +75,10 @@ class CheckoutProcessor
                 'payment_url' => (string) $existing['payment_url'],
                 'reused' => true,
             ];
+        }
+
+        if (is_array($existing)) {
+            $this->closeBeforeReplacing($existing);
         }
 
         $renewCount = is_array($existing) && isset($existing['renew_count']) ? ((int) $existing['renew_count'] + 1) : 0;
@@ -150,7 +156,8 @@ class CheckoutProcessor
      * its deadline (InvoiceRenewal). An invoice the server holds open — network
      * picked, funds confirming, part paid — is kept. When the server cannot be
      * reached the existing link is kept — the checkout it leads to is down just the
-     * same.
+     * same. A 404 is not proof the invoice is gone (see closeBeforeReplacing), so
+     * it goes on to the replacement, which refuses it.
      *
      * @param array<string, mixed> $row
      */
@@ -184,8 +191,39 @@ class CheckoutProcessor
     }
 
     /**
+     * The order's invoice is about to be replaced (the order changed, the
+     * mode was switched, or it can no longer be paid). Cancel it on the server
+     * first, in its own environment, or the buyer could pay both (BUG-166):
+     * the SDK cancels it, or confirms from the server that it ended unpaid.
+     * Anything else — paid, still payable, 404, no answer — keeps the old
+     * invoice and stops; the Redirect controller routes the order to manual
+     * review instead of cancelling it.
+     *
+     * @param array<string, mixed> $row
+     */
+    private function closeBeforeReplacing(array $row): void
+    {
+        $environment = (string) $row['environment'];
+        $recorded = isset($row['status']) ? (string) $row['status'] : '';
+        $result = (new InvoiceReplacement(function () use ($environment) {
+            return $this->client($environment);
+        }))->close((string) $row['paymos_invoice_id'], $recorded);
+
+        if (!$result->isClosed()) {
+            throw new InvoiceReplacementBlockedException($result);
+        }
+
+        // Record the final status before the new row exists, so the old
+        // invoice's own webhook (invoice.cancelled after our cancel) finds a
+        // final row and is ignored as stale.
+        if ($result->status() !== '' && $result->status() !== $recorded) {
+            $this->snapshots->updateStatus((string) $row['paymos_invoice_id'], $result->status());
+        }
+    }
+
+    /**
      * @return Client|object An SDK client (or a duck-typed test double exposing
-     *                       invoices()->create() and ->get()).
+     *                       invoices()->create(), ->get() and ->cancel()).
      */
     private function client(string $environment)
     {

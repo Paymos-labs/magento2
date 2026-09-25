@@ -6,8 +6,10 @@ declare(strict_types=1);
  * Minimal Magento framework stubs — only the symbols the crypto-critical Service
  * classes touch when run outside a Magento install (EventStore's
  * ResourceConnection + two DB exception types). NOT a Magento emulation; the
- * Magento-glue classes (MagentoOrderGateway, InvoiceSnapshotRepository, the
- * controllers) are intentionally NOT loaded by the unit tests.
+ * Magento-glue classes (MagentoOrderGateway, InvoiceSnapshotRepository) are
+ * intentionally NOT exercised by the unit tests. The checkout Redirect
+ * controller is, through the bare result/session/order/message types at the
+ * end of this file: what the buyer is told after a failed start is decided there.
  */
 
 namespace Magento\Framework\Exception {
@@ -439,6 +441,79 @@ namespace Monolog {
         {
             public function info($message, array $context = array()) {}
             public function warning($message, array $context = array()) {}
+        }
+    }
+}
+
+namespace Magento\Framework\Controller\Result {
+    if (!class_exists(Redirect::class)) {
+        class Redirect
+        {
+            /** @var string */
+            public $path = '';
+
+            /** @var string */
+            public $url = '';
+
+            public function setPath($path, array $params = array())
+            {
+                $this->path = (string) $path;
+                return $this;
+            }
+
+            public function setUrl($url)
+            {
+                $this->url = (string) $url;
+                return $this;
+            }
+        }
+    }
+}
+
+namespace Magento\Framework\Controller {
+    if (!class_exists(ResultFactory::class)) {
+        class ResultFactory
+        {
+            const TYPE_REDIRECT = 'redirect';
+
+            public function create($type, array $arguments = array())
+            {
+                return new Result\Redirect();
+            }
+        }
+    }
+}
+
+namespace Magento\Framework\Message {
+    if (!interface_exists(ManagerInterface::class)) {
+        interface ManagerInterface
+        {
+            public function addErrorMessage($message, $group = null);
+        }
+    }
+}
+
+namespace Magento\Checkout\Model {
+    if (!class_exists(Session::class)) {
+        class Session
+        {
+            public function getLastRealOrder()
+            {
+                return null;
+            }
+
+            public function restoreQuote()
+            {
+                return false;
+            }
+        }
+    }
+}
+
+namespace Magento\Sales\Model {
+    if (!class_exists(Order::class)) {
+        class Order
+        {
         }
     }
 }
