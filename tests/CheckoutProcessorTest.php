@@ -112,3 +112,98 @@ function test_magento_checkout_renews_invoice_when_amount_changes()
     assertFalseValue($result['reused'], 'A changed amount must NOT reuse the old invoice.');
     assertSameValue('100000042-1', $invoices->createPayloads[0]['external_order_id'], 'A changed order must bump the renew suffix.');
 }
+
+function test_magento_checkout_renews_an_invoice_that_expired_on_the_server()
+{
+    // BUG-090 (Magento): the buyer returns to the redirect after the Paymos
+    // invoice's 30 minutes ran out. Same amount and currency, but the old link
+    // leads to an expired checkout — a new invoice must be cut.
+    $config = Config::fromArray(paymos_m2_generated_config());
+    $snapshots = new InMemorySnapshotRepository(array(paymos_m2_snapshot(array('status' => 'awaiting_client'))));
+    $invoices = new FakeInvoices(array(
+        'invoice_id' => 'inv_fresh',
+        'payment_url' => 'https://paymos.test/pay/inv_fresh',
+        'status' => 'awaiting_client',
+    ), array(
+        'invoice_id' => 'inv_123',
+        'project_id' => 'prj_123',
+        'status' => 'awaiting_client',
+        'expires_at' => time() - 3600,
+    ));
+    $processor = new CheckoutProcessor($config, $snapshots, static function () use ($invoices) {
+        return new FakeClient($invoices);
+    });
+
+    $result = $processor->start(array(
+        'order_id' => 42,
+        'increment_id' => '100000042',
+        'amount' => '100.00',
+        'currency' => 'USD',
+        'customer_id' => 77,
+    ), 'sandbox');
+
+    assertFalseValue($result['reused'], 'an expired invoice must not be reused.');
+    assertSameValue('https://paymos.test/pay/inv_fresh', $result['payment_url'], 'the buyer must get the fresh invoice.');
+    assertSameValue('100000042-1', $invoices->createPayloads[0]['external_order_id'], 'the fresh invoice needs a new external order id.');
+}
+
+function test_magento_checkout_renews_without_a_lookup_when_the_invoice_is_already_final()
+{
+    $config = Config::fromArray(paymos_m2_generated_config());
+    $snapshots = new InMemorySnapshotRepository(array(paymos_m2_snapshot(array('status' => 'cancelled'))));
+    $invoices = new FakeInvoices(array(
+        'invoice_id' => 'inv_fresh',
+        'payment_url' => 'https://paymos.test/pay/inv_fresh',
+        'status' => 'awaiting_client',
+    ));
+    $processor = new CheckoutProcessor($config, $snapshots, static function () use ($invoices) {
+        return new FakeClient($invoices);
+    });
+
+    $result = $processor->start(array(
+        'order_id' => 42,
+        'increment_id' => '100000042',
+        'amount' => '100.00',
+        'currency' => 'USD',
+        'customer_id' => 77,
+    ), 'sandbox');
+
+    assertFalseValue($result['reused'], 'a cancelled invoice must not be reused.');
+    assertSameValue(1, count($invoices->createPayloads), 'a fresh invoice must be created.');
+}
+
+function test_magento_checkout_keeps_an_invoice_the_server_holds_open_past_the_old_deadline()
+{
+    // BUG-163: confirming a network moves expires_at on the server and sends
+    // no webhook. Only the server's answer decides; an open invoice is kept.
+    foreach (array('awaiting_payment', 'confirming', 'underpaid_waiting') as $status) {
+        $config = Config::fromArray(paymos_m2_generated_config());
+        $snapshots = new InMemorySnapshotRepository(array(paymos_m2_snapshot(array('status' => 'awaiting_client'))));
+        $invoices = new FakeInvoices(array(
+            'invoice_id' => 'inv_second',
+            'payment_url' => 'https://paymos.test/pay/inv_second',
+            'status' => 'awaiting_client',
+        ), array(
+            'invoice_id' => 'inv_123',
+            'project_id' => 'prj_123',
+            'status' => $status,
+            'is_final' => false,
+            'expires_at' => time() - 3600,
+        ));
+        $processor = new CheckoutProcessor($config, $snapshots, static function () use ($invoices) {
+            return new FakeClient($invoices);
+        });
+
+        $result = $processor->start(array(
+            'order_id' => 42,
+            'increment_id' => '100000042',
+            'amount' => '100.00',
+            'currency' => 'USD',
+            'customer_id' => 77,
+        ), 'sandbox');
+
+        assertTrueValue($result['reused'], $status . ': the open invoice is reused.');
+        assertSameValue('https://paymos.test/pay/inv_123', $result['payment_url'], $status . ': the buyer returns to the same invoice.');
+        assertSameValue(0, count($invoices->createPayloads), $status . ': no second invoice is created.');
+    }
+}

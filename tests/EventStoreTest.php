@@ -81,3 +81,18 @@ function test_magento_event_store_prunes_expired_reservation_before_insert()
         'remember() must prune reservations whose expiry has passed.'
     );
 }
+
+function test_magento_event_store_tells_a_locked_event_from_a_committed_one()
+{
+    // BUG-103: remember() says "seen" for both; isCommitted() must not.
+    $connection = new FakeDbConnection();
+    $first = new EventStore(new ResourceConnection($connection));
+    assertTrueValue($first->remember('evt_lock', 604800), 'first delivery takes the lock.');
+
+    $retry = new EventStore(new ResourceConnection($connection));
+    assertFalseValue($retry->remember('evt_lock', 604800), 'a retry while the lock is held is not new.');
+    assertFalseValue($retry->isCommitted('evt_lock'), 'a locked, uncommitted event is not committed.');
+
+    $first->commit();
+    assertTrueValue($retry->isCommitted('evt_lock'), 'after commit the event is committed.');
+}

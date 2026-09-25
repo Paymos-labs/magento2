@@ -1,6 +1,6 @@
 {
   "source_repository": "shockk73/paymos",
   "source_path": "plugins/magento2-paymos",
-  "source_commit": "b44c05e25dd73ef68f12061a470b5568bd3ced43",
-  "version": "1.2.14"
+  "source_commit": "92087ee76c81fed1e16597e0de2fc6aa22d03f17",
+  "version": "1.2.15"
 }

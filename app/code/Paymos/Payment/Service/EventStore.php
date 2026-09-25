@@ -6,7 +6,7 @@ namespace Paymos\Payment\Service;
 
 use Magento\Framework\App\ResourceConnection;
 use Magento\Framework\Exception\AlreadyExistsException;
-use Paymos\Webhook\EventStoreInterface;
+use Paymos\Webhook\CommitAwareEventStoreInterface;
 
 /**
  * Race-proof webhook dedup backed by the paymos_payment_event table (event_id is
@@ -24,7 +24,7 @@ use Paymos\Webhook\EventStoreInterface;
  *   release()  — DELETE the in-flight row so a processing failure does NOT block
  *                the server's retry of the same event.
  */
-class EventStore implements EventStoreInterface
+class EventStore implements CommitAwareEventStoreInterface
 {
     private const TABLE = 'paymos_payment_event';
 
@@ -81,6 +81,32 @@ class EventStore implements EventStoreInterface
         $this->pendingTtlSeconds = (int) $ttlSeconds;
 
         return true;
+    }
+
+    /**
+     * Whether the event was processed and committed — as opposed to merely
+     * locked by a delivery that has not finished (BUG-103: that one must be
+     * answered non-2xx, or a retry arriving mid-processing marks it delivered).
+     * The table keeps no creation time, so a row counts as committed once it
+     * outlives any reservation remember() could have given it.
+     *
+     * @param string $eventId
+     */
+    public function isCommitted($eventId): bool
+    {
+        $eventId = (string) $eventId;
+        if ($eventId === '') {
+            return false;
+        }
+
+        $connection = $this->resource->getConnection();
+        $select = $connection->select()
+            ->from($this->resource->getTableName(self::TABLE), 'expires_at')
+            ->where('event_id = ?', $eventId)
+            ->limit(1);
+        $expiresAt = $connection->fetchOne($select);
+
+        return $expiresAt !== false && (int) $expiresAt > time() + self::RESERVATION_TTL_SECONDS;
     }
 
     /**
