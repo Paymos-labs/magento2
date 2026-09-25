@@ -6,6 +6,7 @@ namespace Paymos\Payment\Service;
 
 use Paymos\Client;
 use Paymos\Exception\DuplicateEventException;
+use Paymos\Exception\EventInProgressException;
 use Paymos\Exception\SignatureMismatchException;
 use Paymos\Exception\TimestampSkewException;
 use Paymos\Plugin\InvoiceReverseVerifier;
@@ -25,9 +26,10 @@ use Paymos\Webhook\WebhookEvent;
  *     -> OrderMapper (StatusMapper -> roll-back guard -> AmountGuard -> mutate)
  *     -> commit dedup on success, release on failure (so the server retries)
  *
- * HTTP codes are the retry contract: duplicate->200, signature mismatch->401,
- * timestamp skew->401, config error->500, any other failure->400. There is no
- * 202 — a 2xx tells the server to stop retrying.
+ * HTTP codes are the retry contract: duplicate->200, event still being
+ * processed by another delivery->409, signature mismatch->401, timestamp
+ * skew->401, config error->500, any other failure->400. There is no 202 — a
+ * 2xx tells the server to stop retrying.
  */
 class WebhookProcessor
 {
@@ -80,6 +82,11 @@ class WebhookProcessor
             return new CallbackResult(200, 'OK');
         } catch (DuplicateEventException $e) {
             return new CallbackResult(200, 'OK', true);
+        } catch (EventInProgressException $e) {
+            // Another delivery of this event holds the lock and has not finished.
+            // Not a duplicate: a 2xx would mark it delivered even if that delivery
+            // then fails. 409 makes the server retry; the lock is not ours to drop.
+            return new CallbackResult(409, 'In progress');
         } catch (SignatureMismatchException $e) {
             return new CallbackResult(401, 'Bad signature');
         } catch (TimestampSkewException $e) {
@@ -123,6 +130,18 @@ class WebhookProcessor
             if (!$result->isVerified()) {
                 throw new \RuntimeException('Paymos reverse verification failed: ' . $result->reason());
             }
+        }
+
+        // Nothing leaves a final status on the server (Invoice.IsTerminal), so an
+        // event that arrives after one is an out-of-order redelivery. It must not
+        // comment on or move the order, nor overwrite the final status — that
+        // would put the row back into the reconciler's window.
+        if (StatusMapper::isFinalStatus(isset($row['status']) ? (string) $row['status'] : '')) {
+            $this->orderMapper->gateway()->log(
+                'Paymos ignored an invoice status that arrived after a final one. Invoice: ' . $event->invoiceId(),
+                ['final_status' => (string) $row['status'], 'event_type' => $event->type()]
+            );
+            return;
         }
 
         // Mutate the order first; only then persist the last-known status. If

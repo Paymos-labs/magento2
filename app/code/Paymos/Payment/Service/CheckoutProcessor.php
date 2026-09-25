@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Paymos\Payment\Service;
 
 use Paymos\Client;
+use Paymos\Exception\NotFoundException;
+use Paymos\Plugin\InvoiceRenewal;
+use Paymos\Plugin\StatusMapper;
 
 /**
  * Flow A — checkout to invoice. Builds the Paymos invoice payload from a Magento
@@ -63,7 +66,8 @@ class CheckoutProcessor
         }
 
         $existing = $this->snapshots->findByOrderId($orderId);
-        if (is_array($existing) && $this->snapshotMatches($existing, $amount, $currency, $environment, $env->projectId())) {
+        if (is_array($existing) && $this->snapshotMatches($existing, $amount, $currency, $environment, $env->projectId())
+            && $this->keepsExistingInvoice($existing, $environment)) {
             return [
                 'invoice_id' => (string) $existing['paymos_invoice_id'],
                 'payment_url' => (string) $existing['payment_url'],
@@ -131,8 +135,57 @@ class CheckoutProcessor
     }
 
     /**
+     * Whether the Paymos invoice behind a matching snapshot is still the one to
+     * send the buyer to.
+     *
+     * A matching amount is not enough: the server answers a repeated
+     * external_order_id with the same invoice whatever became of it, and a buyer
+     * returning after it ended would land on an expired checkout. Its deadline is
+     * the server's, not a copy kept here: confirming a network moves expires_at to
+     * now + InvoiceOptions.PaymentTtl and sends no webhook. So: a row that already
+     * ended unpaid is renewed at once (that final status came from the server and
+     * never changes again); a paid one is kept (a second invoice would invite a
+     * second payment); anything else is read back from the server (one GET) and
+     * renewed only if the server says it ended unpaid or was never started before
+     * its deadline (InvoiceRenewal). An invoice the server holds open — network
+     * picked, funds confirming, part paid — is kept. When the server cannot be
+     * reached the existing link is kept — the checkout it leads to is down just the
+     * same.
+     *
+     * @param array<string, mixed> $row
+     */
+    private function keepsExistingInvoice(array $row, string $environment): bool
+    {
+        if (InvoiceRenewal::isRequired($row)) {
+            return false;
+        }
+        if (StatusMapper::isFinalStatus(isset($row['status']) ? (string) $row['status'] : '')) {
+            return true;
+        }
+
+        try {
+            $invoice = $this->client($environment)->invoices()->get((string) $row['paymos_invoice_id']);
+        } catch (NotFoundException $e) {
+            return false;
+        } catch (\Exception $e) {
+            return true;
+        }
+
+        if (!is_array($invoice) || !InvoiceRenewal::isRequired($invoice)) {
+            return true;
+        }
+
+        $status = $this->responseField($invoice, ['status']);
+        if ($status !== '') {
+            $this->snapshots->updateStatus((string) $row['paymos_invoice_id'], $status);
+        }
+
+        return false;
+    }
+
+    /**
      * @return Client|object An SDK client (or a duck-typed test double exposing
-     *                       invoices()->create()).
+     *                       invoices()->create() and ->get()).
      */
     private function client(string $environment)
     {

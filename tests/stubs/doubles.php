@@ -75,7 +75,12 @@ final class FakeDbConnection
     {
         if ($select instanceof FakeDbSelect) {
             $id = $select->whereValue();
-            return isset($this->rows[$id]) ? $id : false;
+            if (!isset($this->rows[$id])) {
+                return false;
+            }
+            $column = $select->column();
+
+            return $column === 'event_id' ? $id : (isset($this->rows[$id][$column]) ? $this->rows[$id][$column] : false);
         }
 
         return false;
@@ -144,6 +149,9 @@ final class FakeDbSelect
     /** @var string */
     private $whereValue = '';
 
+    /** @var string */
+    private $column = 'event_id';
+
     public function __construct(FakeDbConnection $connection)
     {
         $this->connection = $connection;
@@ -151,7 +159,13 @@ final class FakeDbSelect
 
     public function from($table, $columns = '*')
     {
+        $this->column = is_string($columns) && $columns !== '*' ? $columns : 'event_id';
         return $this;
+    }
+
+    public function column()
+    {
+        return $this->column;
     }
 
     public function where($condition, $value = null)

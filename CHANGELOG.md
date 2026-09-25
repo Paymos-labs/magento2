@@ -6,6 +6,41 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.2.15] - 2026-09-25
+
+- fix(plugins): BUG-163/BUG-164 остальные плагины — замена счёта только по ответу сервера закреплена тестами, комментарии о сроке счёта исправлены
+- fix(plugins): BUG-103 вебхук, который ещё обрабатывается, больше не отвечается 200 «duplicate»
+- fix(plugins): BUG-090 оплата больше не ведёт на истёкший или проваленный счёт Paymos
+- fix(plugins): BUG-135 поздний нефинальный вебхук больше не оживляет проваленный или отменённый заказ
+- chore: bundle Paymos PHP SDK v1.4.2
+
+### Fixed
+- A late non-final webhook could reopen a finished order. Webhooks are
+  delivered at least once and in no particular order, and only paid orders were
+  guarded: an `invoice.underpaid_waiting` or `invoice.confirming` arriving after
+  the invoice had already ended underpaid, expired or cancelled moved the order
+  back into an open state. Nothing leaves a final status on the server, so once
+  one is recorded for an invoice every later event for it is ignored and the
+  final status stays recorded.
+- A returning buyer could be sent to an expired invoice. The checkout reused
+  the invoice it had already cut for the order whenever the amount and
+  currency still matched, but a Paymos invoice lives 30 minutes from creation
+  and may have ended unpaid since. It now reads the live invoice before reusing
+  it and cuts a new one when the old one expired, was cancelled or ended
+  underpaid. A paid invoice is never replaced.
+- A webhook retry that arrived while the first delivery was still being
+  processed was answered 200 "duplicate". Paymos gives a delivery 10 seconds and
+  retries, while a slow reverse-verification call can take longer; the retry was
+  acknowledged as delivered, and if the first attempt then failed the event was
+  lost. An event that is only locked, not yet committed, is now answered 409 so
+  Paymos tries again, and the lock the first delivery holds is left alone.
+- An invoice nobody started is replaced only once its deadline is five minutes
+  behind the store's clock (`InvoiceRenewal::CLOCK_SKEW_SECONDS` in the bundled
+  SDK). The deadline is the server's, and a store clock running ahead could cut
+  a second invoice while the buyer could still pick a network on the first.
+  Normally the server marks such an invoice expired within seconds, and that
+  status decides first.
+
 ## [1.2.14] - 2026-09-23
 
 - chore: rebuild canonical CMS package

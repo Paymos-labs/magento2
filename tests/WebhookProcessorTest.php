@@ -208,3 +208,39 @@ function test_magento_webhook_failure_logs_unconditional_warning()
     assertSameValue(1, count($warnings), 'The failure must be logged at warning level despite debug being off.');
     assertTrueValue(strpos($warnings[0]['message'], 'webhook processing failed') !== false, 'The failure message must name the webhook failure.');
 }
+
+function test_magento_webhook_ignores_a_stale_event_after_a_final_status()
+{
+    // BUG-135: the invoice already ended expired and the order is canceled. A
+    // delayed confirming must neither comment on the order nor overwrite the
+    // recorded final status (which would put the row back in the reconciler).
+    $gateway = new FakeOrderGateway();
+    $snapshots = new InMemorySnapshotRepository(array(paymos_m2_snapshot(array('status' => 'expired'))));
+    $ctx = paymos_m2_processor(array('gateway' => $gateway, 'snapshots' => $snapshots));
+
+    $body = json_encode(paymos_m2_invoice_event('evt_stale', 'invoice.confirming', 'confirming'));
+    $result = $ctx['processor']->handle($body, paymos_m2_signed_header('whsec_test_secret', $body, 1709000000), true, 1709000000);
+
+    assertSameValue(200, $result->httpCode(), 'a stale event is acknowledged, not retried.');
+    assertSameValue(0, count($gateway->opsOfType('status')), 'a stale event after a final status must not touch the order.');
+    assertSameValue('expired', $snapshots->findByExternalOrderId('100000042-0')['status'], 'the final status must stay recorded.');
+}
+
+function test_magento_webhook_answers_409_while_the_event_is_still_being_processed()
+{
+    // BUG-103: another delivery of this event holds the lock and has not
+    // finished. A 200 "duplicate" would mark it delivered — lost if that
+    // delivery then fails. Answer 409 and leave the lock alone.
+    $connection = new Paymos\Payment\Tests\FakeDbConnection();
+    $events = new Paymos\Payment\Service\EventStore(new Magento\Framework\App\ResourceConnection($connection));
+    assertTrueValue($events->remember('evt_inflight', 604800), 'the first delivery holds the lock.');
+    $gateway = new FakeOrderGateway();
+    $ctx = paymos_m2_processor(array('gateway' => $gateway, 'eventStore' => new Paymos\Payment\Service\EventStore(new Magento\Framework\App\ResourceConnection($connection))));
+
+    $body = json_encode(paymos_m2_invoice_event('evt_inflight', 'invoice.paid', 'paid'));
+    $result = $ctx['processor']->handle($body, paymos_m2_signed_header('whsec_test_secret', $body, 1709000000), true, 1709000000);
+
+    assertSameValue(409, $result->httpCode(), 'an event still in flight must be answered non-2xx so the server retries.');
+    assertTrueValue(isset($connection->rows['evt_inflight']), 'the retry must not release the lock the first delivery still holds.');
+    assertSameValue(0, count($gateway->opsOfType('invoice')), 'nothing may be applied while the event is in flight.');
+}
