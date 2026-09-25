@@ -27,6 +27,7 @@ $testFiles = array(
     __DIR__ . '/ConfigTest.php',
     __DIR__ . '/EventStoreTest.php',
     __DIR__ . '/CheckoutProcessorTest.php',
+    __DIR__ . '/RedirectTest.php',
     __DIR__ . '/OrderMapperTest.php',
     __DIR__ . '/WebhookProcessorTest.php',
     __DIR__ . '/ReconcilerTest.php',

@@ -132,6 +132,16 @@ class Redirect implements HttpGetActionInterface
             }
 
             return $redirect->setUrl($result['payment_url']);
+        } catch (\Paymos\Plugin\InvoiceReplacementBlockedException $e) {
+            // The order's previous Paymos invoice may still be paid (BUG-166): no
+            // second invoice was cut, and cancelling the order here would hide a
+            // payment that can still arrive on the old one. Leave the order as it
+            // is and note it for manual review. The buyer is asked to contact
+            // the store, not to pay another way: that could charge them twice
+            // (BUG-180). Same words as the SDK's InvoiceReplacementBlockedException,
+            // spelled out so Magento's i18n collector sees the phrase.
+            $this->noteForManualReview($order, $e->result()->summary());
+            $this->messageManager->addErrorMessage((string) __('The store needs to review this order before payment can continue. Please contact the store.'));
         } catch (ApiException $e) {
             $this->failOrder($order, 'Paymos invoice creation failed: ' . $e->detail());
             $this->messageManager->addErrorMessage((string) __('We could not start the crypto payment: %1', $e->detail()));
@@ -147,6 +157,23 @@ class Redirect implements HttpGetActionInterface
         }
 
         return $redirect->setPath('checkout/cart');
+    }
+
+    private function noteForManualReview(Order $order, string $summary): void
+    {
+        $this->logger->warning('Paymos order needs manual review.', [
+            'order_id' => (int) $order->getEntityId(),
+            'summary' => $summary,
+        ]);
+        try {
+            $order->addCommentToStatusHistory('Paymos payment needs manual review. ' . $summary);
+            $order->save();
+        } catch (\Throwable $e) {
+            $this->logger->warning('Paymos could not note the order for manual review.', [
+                'order_id' => (int) $order->getEntityId(),
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     private function failOrder(Order $order, string $comment): void
