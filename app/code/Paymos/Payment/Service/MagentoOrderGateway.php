@@ -159,6 +159,29 @@ class MagentoOrderGateway implements MagentoOrderGatewayInterface
         $this->orderRepository->save($order);
     }
 
+    public function hasPaymentFlag(int $orderId, string $key): bool
+    {
+        $order = $this->getOrder($orderId);
+        if ($order === null || $order->getPayment() === null) {
+            return false;
+        }
+
+        $value = $order->getPayment()->getAdditionalInformation($key);
+
+        return $value !== null && $value !== '';
+    }
+
+    public function setPaymentFlag(int $orderId, string $key, string $value): void
+    {
+        $order = $this->getOrder($orderId);
+        if ($order === null || $order->getPayment() === null) {
+            return;
+        }
+
+        $order->getPayment()->setAdditionalInformation($key, $value);
+        $this->orderRepository->save($order);
+    }
+
     public function addComment(int $orderId, string $comment): void
     {
         $order = $this->getOrder($orderId);
