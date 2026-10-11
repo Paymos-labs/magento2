@@ -136,6 +136,32 @@ class WebhookProcessor
         // event that arrives after one is an out-of-order redelivery. It must not
         // comment on or move the order, nor overwrite the final status — that
         // would put the row back into the reconciler's window.
+
+        // invoice-late-payment: money crossed the invoice's total AFTER it closed. The order keeps
+        // its decision — one native status-history comment (no state change) plus a per-invoice
+        // marker in the snapshot store, decided BEFORE the stale-after-final guard above (a late
+        // event arrives after a terminal status by definition). No invoice, state or stock action;
+        // the marker makes a sequential duplicate or a redelivery silent.
+        if (StatusMapper::invoiceAction($event->type(), $event->status()) === StatusMapper::ACTION_NOTE_PAID_LATE) {
+            $orderId = (int) $row['order_id'];
+            $flagKey = 'paymos_paid_late' . ($event->invoiceId() !== '' ? ':' . $event->invoiceId() : '');
+            if ($this->orderMapper->gateway()->hasPaymentFlag($orderId, $flagKey)) {
+                $this->orderMapper->gateway()->log(
+                    'Paymos paid-late note already recorded. Invoice: ' . $event->invoiceId()
+                );
+                return;
+            }
+
+            $this->orderMapper->gateway()->addComment(
+                $orderId,
+                'Paymos: payment arrived after the invoice deadline and covered the full amount. Invoice: ' . $event->invoiceId()
+            );
+            // The snapshot store is INSERT-only by design (a renewed invoice is a new row), so the
+            // marker lives on the ORDER's payment KV — one note per invoice, whatever the redelivery.
+            $this->orderMapper->gateway()->setPaymentFlag($orderId, $flagKey, $event->id() !== '' ? $event->id() : '1');
+            return;
+        }
+
         if (StatusMapper::isFinalStatus(isset($row['status']) ? (string) $row['status'] : '')) {
             $this->orderMapper->gateway()->log(
                 'Paymos ignored an invoice status that arrived after a final one. Invoice: ' . $event->invoiceId(),
@@ -143,6 +169,7 @@ class WebhookProcessor
             );
             return;
         }
+
 
         // Mutate the order first; only then persist the last-known status. If
         // apply() throws (e.g. AmountGuard holds the order for manual review), the

@@ -285,6 +285,20 @@ final class FakeOrderGateway implements MagentoOrderGatewayInterface
         $this->calls[] = array('op' => 'comment', 'order_id' => $orderId, 'comment' => $comment);
     }
 
+    /** @var array<int, array<string, string>> */
+    public $paymentFlags = array();
+
+    public function hasPaymentFlag(int $orderId, string $key): bool
+    {
+        return isset($this->paymentFlags[$orderId][$key])
+            && $this->paymentFlags[$orderId][$key] !== '';
+    }
+
+    public function setPaymentFlag(int $orderId, string $key, string $value): void
+    {
+        $this->paymentFlags[$orderId][$key] = $value;
+    }
+
     public function log(string $message, array $context = array())
     {
         $this->logs[] = array('level' => 'debug', 'message' => $message, 'context' => $context);

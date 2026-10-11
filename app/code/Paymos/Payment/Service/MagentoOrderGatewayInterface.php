@@ -53,6 +53,17 @@ interface MagentoOrderGatewayInterface
     public function addComment(int $orderId, string $comment);
 
     /**
+     * invoice-late-payment: a small per-order marker on the payment's native additional-information
+     * KV (no schema change). Used for the idempotent paid-late note.
+     */
+    public function hasPaymentFlag(int $orderId, string $key): bool;
+
+    /**
+     * @return void
+     */
+    public function setPaymentFlag(int $orderId, string $key, string $value);
+
+    /**
      * @param array<string, mixed> $context
      * @return void
      */

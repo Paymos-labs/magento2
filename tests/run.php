@@ -30,6 +30,7 @@ $testFiles = array(
     __DIR__ . '/RedirectTest.php',
     __DIR__ . '/OrderMapperTest.php',
     __DIR__ . '/WebhookProcessorTest.php',
+    __DIR__ . '/PaidLateCallbackTest.php',
     __DIR__ . '/ReconcilerTest.php',
     __DIR__ . '/ConnectionStatusTest.php',
 );
