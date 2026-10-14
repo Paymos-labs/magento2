@@ -154,7 +154,7 @@ class WebhookProcessor
 
             $this->orderMapper->gateway()->addComment(
                 $orderId,
-                'Paymos: payment arrived after the invoice deadline and covered the full amount. Invoice: ' . $event->invoiceId()
+                'Paymos: the customer finished paying for this order after the invoice closed. Check stock, then fulfil the order manually or refund the payment. Invoice: ' . $event->invoiceId()
             );
             // The snapshot store is INSERT-only by design (a renewed invoice is a new row), so the
             // marker lives on the ORDER's payment KV — one note per invoice, whatever the redelivery.
