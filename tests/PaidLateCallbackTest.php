@@ -53,7 +53,7 @@ function test_magento_paid_late_comments_once_and_changes_nothing()
     assertSameValue(1, count($comments), 'paid_late must add exactly one status-history comment.');
     assertSameValue(42, $comments[0]['order_id'], 'the comment belongs to the snapshot order.');
     assertTrueValue(
-        strpos($comments[0]['comment'], 'arrived after the invoice deadline') !== false,
+        strpos($comments[0]['comment'], 'finished paying for this order after the invoice closed') !== false,
         'the comment names the late fact.'
     );
     assertSameValue(0, count($ctx['gateway']->opsOfType('invoice')), 'paid_late must never invoice the order.');
