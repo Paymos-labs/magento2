@@ -40,6 +40,7 @@ function test_magento_reconciler_ignores_answer_missing_order_reference()
         'invoice_id' => paymos_m2_snapshot()['paymos_invoice_id'],
         'project_id' => paymos_m2_snapshot()['project_id'],
         'status' => 'paid',
+        'is_test' => true,
     );
 
     $reconciler = paymos_m2_reconciler(array('gateway' => $gateway, 'invoice' => $invoice));
@@ -57,7 +58,8 @@ function test_magento_reconciler_applies_paid_answer_that_matches()
         'invoice_id' => $row['paymos_invoice_id'],
         'project_id' => $row['project_id'],
         'status' => 'paid',
-        'order' => array('external_id' => $row['external_order_id'], 'currency' => $row['currency']),
+        'is_test' => true,
+        'order' => array('external_id' => $row['external_order_id'], 'amount' => $row['amount'], 'currency' => $row['currency']),
     );
 
     $reconciler = paymos_m2_reconciler(array('gateway' => $gateway, 'invoice' => $invoice));
@@ -65,4 +67,16 @@ function test_magento_reconciler_applies_paid_answer_that_matches()
 
     assertSameValue(1, $applied, 'A matching paid answer must be applied.');
     assertSameValue(1, count($gateway->opsOfType('invoice')), 'The order must be invoiced.');
+}
+
+function test_magento_reconciler_does_not_complete_without_api_amount()
+{
+    $gateway = new FakeOrderGateway();
+    $row = paymos_m2_snapshot();
+    $invoice = array('invoice_id' => $row['paymos_invoice_id'], 'project_id' => $row['project_id'],
+        'status' => 'paid', 'is_test' => true,
+        'order' => array('external_id' => $row['external_order_id'], 'currency' => $row['currency']));
+    $reconciler = paymos_m2_reconciler(array('gateway' => $gateway, 'invoice' => $invoice));
+    assertSameValue(0, $reconciler->run(), 'Missing API amount is not sufficient payment evidence.');
+    assertSameValue(0, count($gateway->opsOfType('invoice')), 'Missing amount never invoices the order.');
 }

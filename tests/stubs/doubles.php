@@ -472,6 +472,7 @@ final class FakeInvoices
             'invoice_id' => 'inv_123',
             'project_id' => 'prj_123',
             'status' => 'paid',
+            'is_test' => true,
             'order' => array(
                 'external_id' => '100000042-0',
                 'amount' => '100',

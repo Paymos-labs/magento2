@@ -136,6 +136,7 @@ function paymos_m2_reverse_client(array $invoice = array())
         'invoice_id' => 'inv_123',
         'project_id' => 'prj_123',
         'status' => 'paid',
+        'is_test' => true,
         'order' => array(
             // Server trims trailing zeros ("100.00" -> "100"); snapshot is
             // "100.00". Reverse-verify must treat them equal.

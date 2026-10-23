@@ -126,6 +126,7 @@ function test_magento_webhook_does_not_roll_back_paid_order_on_late_cancel()
         'invoice_id' => 'inv_123',
         'project_id' => 'prj_123',
         'status' => 'cancelled',
+        'is_test' => true,
         'order' => array('external_id' => '100000042-0', 'amount' => '100', 'currency' => 'USD'),
     );
     $ctx = paymos_m2_processor(array('gateway' => $gateway, 'invoice' => $cancelledInvoice));
@@ -178,6 +179,7 @@ function test_magento_webhook_reverse_verify_mismatch_returns_400()
         'invoice_id' => 'inv_123',
         'project_id' => 'prj_123',
         'status' => 'paid',
+        'is_test' => true,
         'order' => array('external_id' => 'SOMEONE_ELSE-0', 'amount' => '100', 'currency' => 'USD'),
     );
     $ctx = paymos_m2_processor(array('gateway' => $gateway, 'invoice' => $badInvoice));
