@@ -132,6 +132,7 @@ function test_magento_checkout_renews_an_invoice_that_expired_on_the_server()
         'invoice_id' => 'inv_123',
         'project_id' => 'prj_123',
         'status' => 'awaiting_client',
+        'is_test' => true,
         'expires_at' => time() - 3600,
     ));
     $processor = new CheckoutProcessor($config, $snapshots, static function () use ($invoices) {
@@ -195,6 +196,7 @@ function test_magento_checkout_keeps_an_invoice_the_server_holds_open_past_the_o
             'invoice_id' => 'inv_123',
             'project_id' => 'prj_123',
             'status' => $status,
+            'is_test' => true,
             'is_final' => false,
             'expires_at' => time() - 3600,
         ));
