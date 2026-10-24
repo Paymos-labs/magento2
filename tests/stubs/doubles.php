@@ -129,6 +129,12 @@ final class FakeDbConnection
                 }
                 continue;
             }
+            if (strpos($condition, 'owner_token =') !== false) {
+                if ((string) ($row['owner_token'] ?? '') !== (string) $value) {
+                    return false;
+                }
+                continue;
+            }
 
             // Unknown condition: be conservative and do not match.
             return false;

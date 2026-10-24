@@ -37,6 +37,17 @@ class EventStore implements CommitAwareEventStoreInterface
     /** @var string */
     private $pendingEventId = '';
 
+    /**
+     * Owner token of the reservation remember() took (A10-02). Each successful
+     * remember() mints a fresh random token; commit()/release() match it in
+     * their WHERE clause, so a delivery whose reservation expired (and whose
+     * event id was taken over by a newer delivery) can no longer delete or
+     * commit the successor's row.
+     *
+     * @var string
+     */
+    private $pendingOwnerToken = '';
+
     /** @var int */
     private $pendingTtlSeconds = 0;
 
@@ -59,9 +70,12 @@ class EventStore implements CommitAwareEventStoreInterface
         // Prune expired reservations so a crashed callback's id can be retried.
         $connection->delete($table, ['expires_at < ?' => $now]);
 
+        $ownerToken = bin2hex(random_bytes(16));
+
         try {
             $connection->insert($table, [
                 'event_id' => $eventId,
+                'owner_token' => $ownerToken,
                 'expires_at' => $now + self::RESERVATION_TTL_SECONDS,
             ]);
         } catch (AlreadyExistsException $e) {
@@ -78,6 +92,7 @@ class EventStore implements CommitAwareEventStoreInterface
         }
 
         $this->pendingEventId = $eventId;
+        $this->pendingOwnerToken = $ownerToken;
         $this->pendingTtlSeconds = (int) $ttlSeconds;
 
         return true;
@@ -110,29 +125,41 @@ class EventStore implements CommitAwareEventStoreInterface
     }
 
     /**
-     * Extend the reservation to the full dedup window now the order mutation has
-     * succeeded, so a re-delivery of this event is suppressed for the whole window.
+     * Extend the reservation to the full dedup window — but only if this store
+     * instance still owns it. Zero affected rows mean a newer delivery took the
+     * event id over after this reservation expired (A10-02): that successor's
+     * row must stay untouched, and the commit is reported as not owned (false),
+     * not as an error.
      */
-    public function commit(): void
+    public function commit(): bool
     {
         if ($this->pendingEventId === '') {
-            return;
+            return false;
         }
 
         $connection = $this->resource->getConnection();
         $table = $this->resource->getTableName(self::TABLE);
-        $connection->update(
+        $affected = $connection->update(
             $table,
             ['expires_at' => time() + $this->pendingTtlSeconds],
-            ['event_id = ?' => $this->pendingEventId]
+            [
+                'event_id = ?' => $this->pendingEventId,
+                'owner_token = ?' => $this->pendingOwnerToken,
+            ]
         );
 
         $this->pendingEventId = '';
+        $this->pendingOwnerToken = '';
         $this->pendingTtlSeconds = 0;
+
+        return (int) $affected > 0;
     }
 
     /**
      * Drop the in-flight lock so the server can retry a failed processing run.
+     * Only this owner's row is deleted: when the reservation expired and a
+     * newer delivery owns the event id now, release() completes silently and
+     * leaves the successor's row alone (A10-02).
      */
     public function release(): void
     {
@@ -142,9 +169,13 @@ class EventStore implements CommitAwareEventStoreInterface
 
         $connection = $this->resource->getConnection();
         $table = $this->resource->getTableName(self::TABLE);
-        $connection->delete($table, ['event_id = ?' => $this->pendingEventId]);
+        $connection->delete($table, [
+            'event_id = ?' => $this->pendingEventId,
+            'owner_token = ?' => $this->pendingOwnerToken,
+        ]);
 
         $this->pendingEventId = '';
+        $this->pendingOwnerToken = '';
         $this->pendingTtlSeconds = 0;
     }
 

@@ -2,6 +2,7 @@
     "paymos_payment_event": {
         "column": {
             "event_id": true,
+            "owner_token": true,
             "expires_at": true,
             "created_at": true
         },
