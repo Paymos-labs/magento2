@@ -20,6 +20,7 @@
 
     <table name="paymos_payment_event" resource="default" engine="innodb" comment="Paymos processed webhook events (dedup)">
         <column xsi:type="varchar" name="event_id" nullable="false" length="128" comment="Paymos webhook event id (evt_...)"/>
+        <column xsi:type="varchar" name="owner_token" nullable="false" length="32" default="" comment="Random owner token fencing commit/release to the delivery that reserved the row (A10-02)"/>
         <column xsi:type="int" name="expires_at" padding="10" unsigned="true" nullable="false" default="0" comment="Unix time the dedup row may be pruned (short reservation until commit, then full window)"/>
         <column xsi:type="timestamp" name="created_at" on_update="false" nullable="false" default="CURRENT_TIMESTAMP" comment="Row creation time"/>
         <constraint xsi:type="primary" referenceId="PRIMARY">
