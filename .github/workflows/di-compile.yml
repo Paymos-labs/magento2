@@ -175,3 +175,42 @@ jobs:
           php bin/magento setup:static-content:deploy -f --no-interaction
           php bin/magento deploy:mode:set production --no-interaction
           php bin/magento indexer:reindex
+
+      - name: Native ACL construction and restricted-role regression
+        working-directory: magento
+        run: php ../tests/native-acl.php "$PWD"
+
+      - name: The native gate rejects the original duplicate-resource defect
+        working-directory: magento
+        run: |
+          set -euo pipefail
+          acl=vendor/paymos/magento2-payment/etc/acl.xml
+          backup="$RUNNER_TEMP/paymos-acl-original.xml"
+          cp "$acl" "$backup"
+          trap 'cp "$backup" "$acl"; php bin/magento cache:flush --no-interaction' EXIT
+          python3 - "$acl" <<'EOF'
+          import sys
+          import xml.etree.ElementTree as ET
+
+          path = sys.argv[1]
+          tree = ET.parse(path)
+          admin = tree.find("./acl/resources/resource[@id='Magento_Backend::admin']")
+          stores = admin.find("./resource[@id='Magento_Backend::stores']")
+          config = stores.find("./resource[@id='Magento_Backend::stores_settings']/resource[@id='Magento_Config::config']")
+          if config is None:
+              sys.exit("native ACL fixture no longer matches the module hierarchy")
+          admin.remove(stores)
+          admin.append(config)
+          tree.write(path, encoding="utf-8", xml_declaration=True)
+          EOF
+          php bin/magento cache:flush --no-interaction
+          if php ../tests/native-acl.php "$PWD" > "$RUNNER_TEMP/paymos-acl-negative.log" 2>&1; then
+            echo 'Broken duplicate-resource XML unexpectedly passed the native gate' >&2
+            exit 1
+          fi
+          cat "$RUNNER_TEMP/paymos-acl-negative.log"
+          grep -F "Resource id 'Magento_Config::config' already exists" "$RUNNER_TEMP/paymos-acl-negative.log"
+          cp "$backup" "$acl"
+          php bin/magento cache:flush --no-interaction
+          php ../tests/native-acl.php "$PWD"
+          trap - EXIT
