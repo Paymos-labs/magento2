@@ -10,6 +10,9 @@
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Cron:etc/crontab.xsd">
     <group id="default">
+        <job name="paymos_reconcile_refunds" instance="Paymos\Payment\Cron\ReconcileRefunds" method="execute">
+            <schedule>* * * * *</schedule>
+        </job>
         <job name="paymos_reconcile_invoices"
              instance="Paymos\Payment\Cron\ReconcileInvoices"
              method="execute">

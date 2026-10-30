@@ -81,4 +81,34 @@
             </argument>
         </arguments>
     </type>
+    <type name="Paymos\Payment\Controller\Payment\Callback">
+        <arguments><argument name="refunds" xsi:type="object">Paymos\Payment\Service\RefundAdapter</argument></arguments>
+    </type>
+    <type name="Magento\Sales\Controller\Adminhtml\Order\Creditmemo\Save">
+        <plugin name="paymos_refund_preflight" type="Paymos\Payment\Plugin\RefundEntry" sortOrder="1"/>
+    </type>
+    <type name="Magento\Sales\Block\Adminhtml\Order\Creditmemo\Create\Items">
+        <plugin name="paymos_refund_token" type="Paymos\Payment\Plugin\RefundEntry"/>
+    </type>
+    <type name="Magento\Sales\Api\CreditmemoManagementInterface">
+        <plugin name="paymos_refund_native_guard" type="Paymos\Payment\Plugin\RefundGuard" sortOrder="1"/>
+    </type>
+    <type name="Magento\Sales\Api\RefundOrderInterface">
+        <plugin name="paymos_refund_order_guard" type="Paymos\Payment\Plugin\RefundApiGuard" sortOrder="1"/>
+    </type>
+    <type name="Magento\Sales\Api\RefundInvoiceInterface">
+        <plugin name="paymos_refund_invoice_guard" type="Paymos\Payment\Plugin\RefundApiGuard" sortOrder="1"/>
+    </type>
+    <type name="Magento\Sales\Api\CreditmemoRepositoryInterface">
+        <plugin name="paymos_refund_persistence_guard" type="Paymos\Payment\Plugin\RefundGuard" sortOrder="1"/>
+    </type>
+    <type name="Magento\Sales\Model\ResourceModel\Order\Creditmemo">
+        <plugin name="paymos_refund_resource_guard" type="Paymos\Payment\Plugin\RefundGuard" sortOrder="1"/>
+    </type>
+    <type name="Magento\Sales\Model\Order\Creditmemo\RefundOperation">
+        <plugin name="paymos_refund_operation_guard" type="Paymos\Payment\Plugin\RefundOperationGuard" sortOrder="1"/>
+    </type>
+    <type name="Magento\Sales\Model\Order\Email\Sender\CreditmemoSender">
+        <plugin name="paymos_refund_mail_guard" type="Paymos\Payment\Plugin\RefundGuard" sortOrder="1"/>
+    </type>
 </config>

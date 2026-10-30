@@ -38,5 +38,82 @@
         "index": {
             "PAYMOS_PAYMENT_INVOICE_ORDER_ID": true
         }
+    },
+    "paymos_refund_installation": {
+        "column": {
+            "entity_id": true,
+            "installation_id": true
+        },
+        "constraint": {
+            "PRIMARY": true,
+            "PAYMOS_REFUND_INSTALLATION_UUID": true
+        }
+    },
+    "paymos_refund_intent": {
+        "column": {
+            "operation_id": true,
+            "installation_id": true,
+            "request_token": true,
+            "payment_key": true,
+            "external_order_id": true,
+            "withdrawal_id": true,
+            "payload": true,
+            "created_at": true,
+            "next_due": true,
+            "poll_count": true
+        },
+        "constraint": {
+            "PRIMARY": true,
+            "PAYMOS_REFUND_INTENT_TOKEN": true,
+            "PAYMOS_REFUND_INTENT_EXTERNAL": true,
+            "PAYMOS_REFUND_INTENT_WITHDRAWAL": true
+        },
+        "index": {
+            "PAYMOS_REFUND_INTENT_PAYMENT": true,
+            "PAYMOS_REFUND_INTENT_DUE": true
+        }
+    },
+    "paymos_refund_projection": {
+        "column": {
+            "operation_id": true,
+            "payment_key": true,
+            "result": true
+        },
+        "constraint": {
+            "PRIMARY": true
+        }
+    },
+    "sales_creditmemo": {
+        "column": {
+            "paymos_refund_operation_id": true
+        },
+        "constraint": {
+            "SALES_CREDITMEMO_PAYMOS_REFUND_OPERATION": true
+        }
+    },
+    "sales_order_status_history": {
+        "column": {
+            "paymos_refund_operation_id": true
+        },
+        "constraint": {
+            "SALES_ORDER_HISTORY_PAYMOS_REFUND_OPERATION": true
+        }
+    },
+    "paymos_refund_observation": {
+        "column": {
+            "withdrawal_id": true,
+            "payment_key": true,
+            "payload": true,
+            "history_id": true,
+            "review_reason": true,
+            "next_due": true
+        },
+        "constraint": {
+            "PRIMARY": true
+        },
+        "index": {
+            "PAYMOS_REFUND_OBSERVATION_PAYMENT": true,
+            "PAYMOS_REFUND_OBSERVATION_DUE": true
+        }
     }
 }

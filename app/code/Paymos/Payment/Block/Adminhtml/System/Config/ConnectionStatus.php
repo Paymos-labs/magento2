@@ -86,6 +86,39 @@ class ConnectionStatus extends Field
             . 'var i=Math.max(1,Number(x.interval||5))*1000;setTimeout(function q(){p(' . json_encode($pollUrl) . ').then(function(y){if(y.error)throw new Error(y.error);if(y.status==="connected"){location.reload();return;}setTimeout(q,y.status==="slow_down"?i+5000:i);}).catch(function(e){if(!manual)m.textContent=" "+e.message;b.disabled=false;});},i);})'
             . '.catch(function(e){if(t&&!t.closed)t.close();m.textContent=" "+e.message;b.disabled=false;});};})();</script>';
 
+        $refundUrl = $this->getUrl('paymos/refund/manage');
+        $operationLabels = json_encode([
+            'full' => (string) __('Check full refund'),
+            'overpayment' => (string) __('Check overpayment refund'),
+        ]);
+        $html .= '<fieldset id="paymos-refunds"><legend>' . $this->escapeHtml(__('Paymos refunds')) . '</legend>'
+            . '<label for="paymos-refund-order">' . $this->escapeHtml(__('Order ID from the order page URL')) . '</label> '
+            . '<input id="paymos-refund-order" type="number" min="1" />'
+            . '<button type="button" id="paymos-refund-panel">' . $this->escapeHtml(__('Load order')) . '</button>'
+            . '<button type="button" id="paymos-refund-over" disabled>' . $this->escapeHtml(__('Refund overpayment')) . '</button>'
+            . '<p><output id="paymos-refund-order-summary" aria-live="polite"></output></p>'
+            . '<pre id="paymos-refund-state"></pre><div id="paymos-refund-operations"></div></fieldset>';
+        $html .= '<script>(function(){var order=document.getElementById("paymos-refund-order"),'
+            . 'load=document.getElementById("paymos-refund-panel"),over=document.getElementById("paymos-refund-over"),'
+            . 'state=document.getElementById("paymos-refund-state"),ops=document.getElementById("paymos-refund-operations"),'
+            . 'identity=document.getElementById("paymos-refund-order-summary"),token="",loaded=null,generation=0,busy=false,buttons=[],labels=' . $operationLabels . ';'
+            . 'function matches(){return loaded&&String(loaded.order_id)===order.value;}'
+            . 'function sync(){over.disabled=busy||!matches()||!token||!loaded.can_overpayment;buttons.forEach(function(b){b.disabled=busy||!matches();});}'
+            . 'function invalidate(){generation++;loaded=null;token="";over.disabled=true;ops.textContent="";buttons=[];identity.textContent="";state.textContent="";}'
+            . 'function post(action,key){if(busy)return;var id;if(action==="panel"){invalidate();id=order.value;}'
+            . 'else{if(!matches()){invalidate();return;}id=String(loaded.order_id);token="";}'
+            . 'if(!/^[1-9][0-9]*$/.test(id))return;var version=generation;busy=true;sync();load.disabled=true;var d=new URLSearchParams();'
+            . 'd.set("form_key",window.FORM_KEY);d.set("order_id",id);d.set("action",action);if(key)d.set("request_token",key);'
+            . 'return fetch(' . json_encode($refundUrl) . ',{method:"POST",credentials:"same-origin",body:d}).then(function(r){return r.json();})'
+            . '.then(function(x){if(version!==generation||order.value!==id)return;state.textContent=JSON.stringify(x,null,2);if(x.error)return;'
+            . 'if(action==="panel"){if(String(x.order_id)!==id||!x.order_increment_id||!x.order_amount||!x.order_currency)return;'
+            . 'loaded=x;token=x.request_token;identity.textContent="#"+x.order_increment_id+" · "+x.order_amount+" "+x.order_currency;'
+            . '(x.operations||[]).forEach(function(o){var b=document.createElement("button");b.type="button";b.textContent=(labels[o.mode]||o.mode)+" "+o.operation_id;'
+            . 'b.onclick=function(){post("resume",o.request_token);};buttons.push(b);ops.appendChild(b);});}})'
+            . '.catch(function(){if(version===generation&&order.value===id)state.textContent=' . json_encode((string) __('The request did not finish. Reload the page and load the order again to check the refund status.')) . ';}).then(function(){busy=false;load.disabled=false;sync();});}'
+            . 'load.onclick=function(){post("panel");};over.onclick=function(){post("overpayment",token);};'
+            . 'order.oninput=invalidate;order.onchange=invalidate;'
+            . 'var selected=new URLSearchParams(location.search).get("paymos_order_id");if(selected&&/^[1-9][0-9]*$/.test(selected)){order.value=selected;post("panel");}})();</script>';
         return $html;
     }
 }
