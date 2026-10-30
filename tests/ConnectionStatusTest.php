@@ -47,3 +47,11 @@ function test_magento_connection_status_connected_state_shows_key()
     assertTrueValue(strpos($html, 'Connected') !== false, 'A configured environment must render the connected state.');
     assertTrueValue(strpos($html, 'prj_test123') !== false, 'The project id must be rendered.');
 }
+
+function test_magento_connection_status_labels_refund_order_and_loaded_identity()
+{
+    $method = new ReflectionMethod(ConnectionStatus::class, '_getElementHtml');
+    $html = $method->invoke(paymos_m2_status_block(), new AbstractElement());
+    assertContainsValue('<label for="paymos-refund-order">Order ID from the order page URL</label>', $html, 'Existing label is visible and bound to input');
+    assertContainsValue('<output id="paymos-refund-order-summary" aria-live="polite">', $html, 'Loaded order identity has a visible live output');
+}

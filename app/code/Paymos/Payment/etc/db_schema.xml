@@ -59,4 +59,53 @@
             <column name="order_id"/>
         </index>
     </table>
+    <table name="paymos_refund_installation" resource="sales" engine="innodb" comment="Paymos refund installation">
+        <column xsi:type="smallint" name="entity_id" unsigned="true" nullable="false" comment="entity_id"/>
+        <column xsi:type="varchar" name="installation_id" length="36" nullable="false" comment="installation_id"/>
+        <constraint xsi:type="primary" referenceId="PRIMARY"><column name="entity_id"/></constraint>
+        <constraint xsi:type="unique" referenceId="PAYMOS_REFUND_INSTALLATION_UUID"><column name="installation_id"/></constraint>
+    </table>
+    <table name="paymos_refund_intent" resource="sales" engine="innodb" comment="Paymos committed refund intents">
+        <column xsi:type="varchar" name="operation_id" length="36" nullable="false" comment="operation_id"/>
+        <column xsi:type="varchar" name="installation_id" length="36" nullable="false" comment="installation_id"/>
+        <column xsi:type="varchar" name="request_token" length="64" nullable="false" comment="request_token"/>
+        <column xsi:type="varchar" name="payment_key" length="128" nullable="false" comment="payment_key"/>
+        <column xsi:type="varchar" name="external_order_id" length="200" nullable="false" comment="external_order_id"/>
+        <column xsi:type="varchar" name="withdrawal_id" length="128" nullable="true" comment="withdrawal_id"/>
+        <column xsi:type="text" name="payload" nullable="false" comment="payload"/>
+        <column xsi:type="bigint" name="created_at" unsigned="true" nullable="false" comment="created_at"/>
+        <column xsi:type="bigint" name="next_due" unsigned="true" nullable="false" comment="next_due"/>
+        <column xsi:type="int" name="poll_count" unsigned="true" nullable="false" default="0" comment="poll_count"/>
+        <constraint xsi:type="primary" referenceId="PRIMARY"><column name="operation_id"/></constraint>
+        <constraint xsi:type="unique" referenceId="PAYMOS_REFUND_INTENT_TOKEN"><column name="installation_id"/><column name="request_token"/></constraint>
+        <constraint xsi:type="unique" referenceId="PAYMOS_REFUND_INTENT_EXTERNAL"><column name="external_order_id"/></constraint>
+        <constraint xsi:type="unique" referenceId="PAYMOS_REFUND_INTENT_WITHDRAWAL"><column name="withdrawal_id"/></constraint>
+        <index referenceId="PAYMOS_REFUND_INTENT_PAYMENT" indexType="btree"><column name="payment_key"/></index>
+        <index referenceId="PAYMOS_REFUND_INTENT_DUE" indexType="btree"><column name="next_due"/><column name="operation_id"/></index>
+    </table>
+    <table name="paymos_refund_projection" resource="sales" engine="innodb" comment="Paymos native refund markers">
+        <column xsi:type="varchar" name="operation_id" length="36" nullable="false" comment="operation_id"/>
+        <column xsi:type="varchar" name="payment_key" length="128" nullable="false" comment="payment_key"/>
+        <column xsi:type="text" name="result" nullable="false" comment="result"/>
+        <constraint xsi:type="primary" referenceId="PRIMARY"><column name="operation_id"/></constraint>
+    </table>
+    <table name="sales_creditmemo" resource="sales" engine="innodb" comment="Sales Flat Creditmemo">
+        <column xsi:type="varchar" name="paymos_refund_operation_id" nullable="true" length="36" comment="Paymos refund operation"/>
+        <constraint xsi:type="unique" referenceId="SALES_CREDITMEMO_PAYMOS_REFUND_OPERATION"><column name="paymos_refund_operation_id"/></constraint>
+    </table>
+    <table name="sales_order_status_history" resource="sales" engine="innodb" comment="Sales Flat Order Status History">
+        <column xsi:type="varchar" name="paymos_refund_operation_id" nullable="true" length="36" comment="Paymos cash note operation"/>
+        <constraint xsi:type="unique" referenceId="SALES_ORDER_HISTORY_PAYMOS_REFUND_OPERATION"><column name="paymos_refund_operation_id"/></constraint>
+    </table>
+    <table name="paymos_refund_observation" resource="sales" engine="innodb" comment="Paymos unbound verified cash observations">
+        <column xsi:type="varchar" name="withdrawal_id" nullable="false" length="128" comment="Provider refund id"/>
+        <column xsi:type="varchar" name="payment_key" nullable="false" length="128" comment="Native payment key"/>
+        <column xsi:type="text" name="payload" nullable="false" comment="Verified snapshot"/>
+        <column xsi:type="varchar" name="history_id" nullable="true" length="64" comment="Cash note id"/>
+        <column xsi:type="varchar" name="review_reason" nullable="true" length="128" comment="Review reason"/>
+        <column xsi:type="bigint" name="next_due" nullable="false" unsigned="true" comment="Next read time"/>
+        <constraint xsi:type="primary" referenceId="PRIMARY"><column name="withdrawal_id"/></constraint>
+        <index referenceId="PAYMOS_REFUND_OBSERVATION_PAYMENT" indexType="btree"><column name="payment_key"/></index>
+        <index referenceId="PAYMOS_REFUND_OBSERVATION_DUE" indexType="btree"><column name="next_due"/><column name="withdrawal_id"/></index>
+    </table>
 </schema>

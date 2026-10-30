@@ -33,6 +33,7 @@ $testFiles = array(
     __DIR__ . '/PaidLateCallbackTest.php',
     __DIR__ . '/ReconcilerTest.php',
     __DIR__ . '/ConnectionStatusTest.php',
+    __DIR__ . '/RefundAdapterTest.php',
 );
 
 foreach ($testFiles as $file) {

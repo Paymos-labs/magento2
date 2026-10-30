@@ -18,6 +18,7 @@ use Paymos\Payment\Service\OrderMapper;
 use Paymos\Payment\Service\PaymosClientFactory;
 use Paymos\Payment\Service\Settings;
 use Paymos\Payment\Service\WebhookProcessor;
+use Paymos\Payment\Service\RefundAdapter;
 
 /**
  * Receives signed Paymos webhooks at paymos/payment/callback.
@@ -68,6 +69,8 @@ class Callback implements HttpPostActionInterface, CsrfAwareActionInterface
     /** @var Settings */
     private $settings;
 
+    private $refunds;
+
     public function __construct(
         HttpRequest $request,
         HttpResponse $response,
@@ -76,7 +79,8 @@ class Callback implements HttpPostActionInterface, CsrfAwareActionInterface
         EventStore $eventStore,
         MagentoOrderGateway $orderGateway,
         PaymosClientFactory $clientFactory,
-        Settings $settings
+        Settings $settings,
+        ?RefundAdapter $refunds = null
     ) {
         $this->request = $request;
         $this->response = $response;
@@ -86,6 +90,7 @@ class Callback implements HttpPostActionInterface, CsrfAwareActionInterface
         $this->orderGateway = $orderGateway;
         $this->clientFactory = $clientFactory;
         $this->settings = $settings;
+        $this->refunds = $refunds;
     }
 
     public function createCsrfValidationException(RequestInterface $request): ?InvalidRequestException
@@ -113,7 +118,8 @@ class Callback implements HttpPostActionInterface, CsrfAwareActionInterface
             $this->snapshots,
             $this->eventStore,
             new OrderMapper($this->orderGateway, $this->settings),
-            $this->clientFactory->asCallable()
+            $this->clientFactory->asCallable(),
+            $this->refunds
         );
 
         // Always notify the customer on the paid invoice — this is the buyer's

@@ -48,18 +48,22 @@ class WebhookProcessor
     /** @var callable|null */
     private $clientFactory;
 
+    private $refunds;
+
     public function __construct(
         Config $config,
         SnapshotRepositoryInterface $snapshots,
         EventStoreInterface $eventStore,
         OrderMapper $orderMapper,
-        ?callable $clientFactory = null
+        ?callable $clientFactory = null,
+        ?RefundAdapter $refunds = null
     ) {
         $this->config = $config;
         $this->snapshots = $snapshots;
         $this->eventStore = $eventStore;
         $this->orderMapper = $orderMapper;
         $this->clientFactory = $clientFactory;
+        $this->refunds = $refunds;
     }
 
     public function handle($rawBody, $signatureHeader, bool $notifyCustomer, $now = null): CallbackResult
@@ -69,6 +73,12 @@ class WebhookProcessor
                 ->process($signatureHeader, $rawBody, $now);
             $environment = $verified->environment();
             $event = $verified->event();
+
+            if (strpos($event->type(), 'withdrawal.') === 0 && $this->refunds !== null) {
+                $this->refunds->handleEvent($event, $environment);
+                $this->commitEvent();
+                return new CallbackResult(200, 'OK');
+            }
 
             if (!$event->isInvoiceEvent()) {
                 $this->commitEvent();
