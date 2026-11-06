@@ -82,5 +82,5 @@ jobs:
           php-version: ${{ matrix.php }}
           coverage: none
       - name: Checkout the Paymos PHP SDK mirror
-        run: git clone --depth=1 https://github.com/paymos-labs/php-sdk "$RUNNER_TEMP/php-sdk"
-      - run: PAYMOS_SDK_SRC="$RUNNER_TEMP/php-sdk/src" php tests/run.php
+        run: git clone --branch v1.9.1 --depth=1 https://github.com/paymos-labs/php-sdk "$RUNNER_TEMP/php-sdk"
+      - run: PAYMOS_SDK_SRC="$RUNNER_TEMP/php-sdk/src" PAYMOS_CONFORMANCE_CONTRACT="$RUNNER_TEMP/php-sdk/conformance/contract.json" php tests/run.php

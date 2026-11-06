@@ -6,6 +6,17 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-11-06
+
+- fix(cms): align marketplace manifests, refund copy, store links, and release guards
+- fix(magento2): require paymos/php-sdk ^1.9.1 and record 1.6.1 WordPress/Adobe QA evidence
+- feat(refunds): finalize clean merchant refunds spec, SDKs, CMS plugins, and targeted test scripts
+- refactor(refunds): drop legacy-invoice refund backfill and preflight (no pre-feature invoices exist)
+- fix(merge): keep both sides for 126 conflicting files (union / semantic JSON merge); Balance.razor keeps ClickToCopy ID column
+- wip(refunds): merchant refund plugin work (CMS adapters, PHP SDK, tests) - unverified WIP snapshot
+- chore: bundle Paymos PHP SDK v1.9.1
+- chore: rebuild canonical CMS package
+
 ## [1.4.1] - 2026-10-30
 
 - fix(plugins): require helper-complete PHP SDK for refunds

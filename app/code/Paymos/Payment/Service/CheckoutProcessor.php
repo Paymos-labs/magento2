@@ -18,7 +18,7 @@ use Paymos\Plugin\StatusMapper;
  *
  * The payload carries ONLY the fields CreateInvoiceRequest accepts:
  *   project_id, amount (dot-decimal string), currency, external_order_id,
- *   allow_multiple_payments, and optional client_id (the Magento customer id,
+ *   optional client_id (the Magento customer id,
  *   never the email; omitted for guest checkout).
  *
  * MerchantId is NEVER sent (the server derives it from project_id). There is NO
@@ -89,7 +89,6 @@ class CheckoutProcessor
             'amount' => $amount,
             'currency' => $currency,
             'external_order_id' => $externalOrderId,
-            'allow_multiple_payments' => true,
         ];
 
         $clientId = $this->clientId($order);

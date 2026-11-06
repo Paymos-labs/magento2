@@ -35,9 +35,9 @@ function test_magento_checkout_creates_invoice_and_snapshot()
     assertSameValue('USD', $payload['currency'], 'Currency must be upper-cased.');
     assertSameValue('100000042-0', $payload['external_order_id'], 'external_order_id must be increment id + renew suffix.');
     assertSameValue('77', $payload['client_id'], 'client_id must be the Magento customer id.');
-    assertTrueValue($payload['allow_multiple_payments'], 'allow_multiple_payments must be true.');
 
     // Forbidden fields must never be sent.
+    assertFalseValue(array_key_exists('allow_multiple_payments', $payload), 'Partial payments are always enabled; the retired switch must be omitted.');
     assertFalseValue(isset($payload['lifetime']), 'No lifetime field — TTL is server-side.');
     assertFalseValue(isset($payload['merchant_id']), 'merchant_id is never sent (derived from project_id).');
     assertFalseValue(isset($payload['return_url']), 'No return_url field.');

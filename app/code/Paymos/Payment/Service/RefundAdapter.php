@@ -115,8 +115,9 @@ class RefundAdapter implements NativeRefundProjectorInterface
                 || ($invoice['order']['currency'] ?? null) !== $snapshot['currency']) {
                 return 'refund_invoice_mapping_conflict';
             }
+            $summary = $this->invoiceSummary($invoice);
             $field = $intent->mode() === RefundStates::FULL ? 'can_refund_full' : 'can_refund_overpayment';
-            return ($invoice['refund_summary'][$field] ?? false) === true ? null : 'refund_server_action_unavailable';
+            return ($summary[$field] ?? false) === true ? null : 'refund_server_action_unavailable';
         } catch (\Throwable $error) {
             return 'refund_preflight_unavailable';
         }
@@ -319,7 +320,7 @@ class RefundAdapter implements NativeRefundProjectorInterface
                 || ($invoice['is_test'] ?? null) !== ($row['environment'] === 'sandbox')) {
                 throw new \RuntimeException('refund_mapping_conflict');
             }
-            $summary = isset($invoice['refund_summary']) && is_array($invoice['refund_summary']) ? $invoice['refund_summary'] : [];
+            $summary = $this->invoiceSummary($invoice);
             $allowed = true;
             try {
                 $this->store->assertNewActionAllowed($key);
@@ -343,6 +344,25 @@ class RefundAdapter implements NativeRefundProjectorInterface
                     return $observation;
                 }, $this->store->unboundForPayment($key))];
         });
+    }
+
+    private function invoiceSummary(array $invoice): array
+    {
+        if (array_key_exists('refund_summary', $invoice)) {
+            return is_array($invoice['refund_summary']) ? $invoice['refund_summary'] : [];
+        }
+        $status = isset($invoice['status']) && is_string($invoice['status']) ? $invoice['status'] : '';
+        $payment = isset($invoice['payment']) && is_array($invoice['payment']) ? $invoice['payment'] : [];
+        $paid = in_array($status, ['paid', 'paid_over'], true);
+        $overpaid = $status === 'paid_over';
+        return [
+            'can_refund_full' => $paid,
+            'can_refund_overpayment' => $overpaid,
+            'full_refund_amount' => isset($payment['paid']) && is_string($payment['paid']) ? $payment['paid'] : ($paid ? (string) ($invoice['order']['amount'] ?? '0') : '0'),
+            'overpayment_refund_amount' => $overpaid && isset($payment['paid']) && is_string($payment['paid']) ? $payment['paid'] : '0',
+            'refund_asset' => isset($payment['currency'], $payment['network'])
+                ? ['currency' => $payment['currency'], 'network' => $payment['network']] : null,
+        ];
     }
 
     public function publicState(RefundIntent $intent): array

@@ -133,9 +133,33 @@ refused.
 
 One delivery cycle is 11 attempts spread over roughly 16 hours, so a store that was briefly
 unreachable still receives the event. Behind that, the `paymos_reconcile_invoices` cron job runs
-every 15 minutes, pulls recent non-terminal invoices from the API and re-applies their current
-status through the same mapper and the same guards. It is a safety net, and it needs Magento's cron
-to be running.
+every 15 minutes to pull recent non-terminal invoices from the API, while `paymos_reconcile_refunds`
+runs every minute to poll pending refunds; both require Magento's cron to be running.
+
+## Refunds
+
+The module supports native refunds through the Paymos Merchant API (`/v1/refunds`) in two modes:
+
+- `full` — refunds the full paid invoice amount;
+- `overpayment` — refunds only the excess received on an `invoice.paid_over` order.
+
+Funds return exclusively to the verified `first_sender` wallet address captured by Paymos when the
+invoice was paid. No manual recipient wallet address is entered, and partial item or adjustment
+refunds are refused.
+
+- **Full refund (`full`):** open the paid Paymos order's invoice in Magento Admin and submit a
+  native **Credit Memo** with every invoiced item refunded in full and zero shipping or adjustment
+  overrides. `Paymos\Payment\Plugin\RefundEntry` intercepts the submission, registers the `full`
+  refund with Paymos without saving a premature local credit memo, and redirects to the **Paymos
+  refunds** panel.
+- **Overpayment refund (`overpayment`) and status checks:** go to **Stores → Configuration → Sales →
+  Payment Methods → Paymos**, enter the order ID in the **Paymos refunds** fieldset, click **Load
+  order**, and use **Refund overpayment** or **Check full refund** / **Check overpayment refund**.
+
+Magento creates the credit memo and order history comment only after Paymos confirms `completed` via
+`/paymos/payment/callback`, a manual status check, or the 1-minute `paymos_reconcile_refunds` cron
+job. In Sandbox mode, terminal refund outcomes (`completed`, `failed`, `cancelled`) can be simulated
+without moving crypto.
 
 ## Troubleshooting
 
