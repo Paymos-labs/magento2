@@ -6,6 +6,12 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-11-10
+
+- feat(notifications): rewrite all 71 email and 52 Telegram RU templates, lifecycle series, and R01-R34 audit fixes
+- chore: bundle Paymos PHP SDK v1.10.0
+- chore: rebuild canonical CMS package
+
 ## [1.10.3] - 2026-11-08
 
 - chore: rebuild canonical CMS package

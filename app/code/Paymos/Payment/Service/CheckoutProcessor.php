@@ -6,6 +6,7 @@ namespace Paymos\Payment\Service;
 
 use Paymos\Client;
 use Paymos\Exception\NotFoundException;
+use Paymos\Plugin\AmountGuard;
 use Paymos\Plugin\InvoiceRenewal;
 use Paymos\Plugin\InvoiceReplacement;
 use Paymos\Plugin\InvoiceReplacementBlockedException;
@@ -116,7 +117,9 @@ class CheckoutProcessor
             'amount' => $amount,
             'currency' => $currency,
             'payment_url' => $paymentUrl,
-            'status' => $status !== '' ? $status : 'created',
+            // An idempotent retry after a lost create response may already be
+            // paid. This snapshot has not applied ANY native decision yet.
+            'status' => StatusMapper::isFinalStatus($status) ? 'awaiting_client' : ($status !== '' ? $status : 'created'),
             'renew_count' => $renewCount,
         ]);
 
@@ -132,7 +135,7 @@ class CheckoutProcessor
      */
     private function snapshotMatches(array $row, string $amount, string $currency, string $environment, string $projectId): bool
     {
-        return (string) $row['amount'] === $amount
+        return AmountGuard::amountsEqual($row['amount'], $amount)
             && strtoupper((string) $row['currency']) === $currency
             && (string) $row['environment'] === $environment
             && (string) $row['project_id'] === $projectId
@@ -250,7 +253,11 @@ class CheckoutProcessor
      */
     private function formatAmount($amount): string
     {
-        return number_format((float) $amount, 2, '.', '');
+        $normalized = AmountGuard::normalizeDecimal($amount);
+        if ($normalized === null || $normalized === '0' || $normalized[0] === '-') {
+            throw new \InvalidArgumentException('Magento order amount must be a positive decimal.');
+        }
+        return $normalized;
     }
 
     /**

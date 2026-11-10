@@ -24,6 +24,7 @@ class MagentoRefundTransport implements \Paymos\Http\TransportInterface
     public $loseLock = false;
     public $invoice;
     public $onPost;
+    public $invoiceFailure = null;
 
     public function __construct($store, $db)
     {
@@ -59,6 +60,8 @@ class MagentoRefundTransport implements \Paymos\Http\TransportInterface
             if ($this->timeout) { throw new RuntimeException('Response lost after provider commit'); }
             $wire = ['withdrawal_id' => $id];
         } elseif (strpos($path, '/v1/invoices/') === 0) {
+            if ($this->invoiceFailure instanceof \Throwable) { throw $this->invoiceFailure; }
+            if (is_int($this->invoiceFailure)) { return new \Paymos\Http\HttpResponse($this->invoiceFailure, '{}', []); }
             $wire = $this->invoice;
         } else {
             $id = basename($path);
@@ -80,6 +83,29 @@ function magento_refund_fixture()
     $credentials = new RefundCredentials();
     return [$db, $store, $transport, $native, $credentials,
         new RefundAdapter($store, $native, $credentials, new RefundClients($client)), &$time];
+}
+
+function test_magento_refund_transient_preflight_resumes_saved_intent()
+{
+    foreach ([new RuntimeException('read timeout'), 503, 429] as $failure) {
+        list($db, $store, $http, $native, $credentials, $adapter) = magento_refund_fixture();
+        $http->invoiceFailure = $failure;
+        $intent = $adapter->submit(42, 'full', 'preflight-retry-0001', []);
+        assertSameValue('not_submitted', $intent->cashState(), 'Unavailable read leaves cash unsubmitted.');
+        assertSameValue('none', $intent->projectionState(), 'Unavailable read is not a native conflict.');
+        assertSameValue(['GET'], array_column($http->requests, 'method'), 'No cash POST before valid preflight.');
+        $http->invoiceFailure = null;
+        $recovered = $adapter->resume(42, 'preflight-retry-0001');
+        assertSameValue('created', $recovered->cashState(), 'Resume succeeds after provider recovery.');
+        assertSameValue($intent->externalOrderId(), $recovered->externalOrderId(), 'Recovery preserves original key.');
+        assertSameValue($intent->operationId(), $recovered->operationId(), 'Recovery preserves saved intent.');
+        assertSameValue(1, count($http->withdrawals), 'Exactly one provider refund.');
+    }
+    list($db, $store, $http, $native, $credentials, $adapter) = magento_refund_fixture();
+    $http->invoiceFailure = 403;
+    $intent = $adapter->submit(42, 'full', 'preflight-denied-001', []);
+    assertSameValue('review', $intent->cashState(), 'Definitive authorization refusal remains review.');
+    assertSameValue(['GET'], array_column($http->requests, 'method'), 'Rejected read cannot send cash.');
 }
 
 function test_magento_ton_raw_pin_accepts_friendly_same_account_and_rejects_another()

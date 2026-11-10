@@ -514,6 +514,10 @@ namespace Magento\Sales\Model {
     if (!class_exists(Order::class)) {
         class Order
         {
+            const STATE_PROCESSING = 'processing';
+            const STATE_COMPLETE = 'complete';
+            const STATE_CLOSED = 'closed';
+            const STATE_CANCELED = 'canceled';
         }
     }
 }

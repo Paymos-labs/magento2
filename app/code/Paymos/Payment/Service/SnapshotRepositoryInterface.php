@@ -11,6 +11,11 @@ namespace Paymos\Payment\Service;
  */
 interface SnapshotRepositoryInterface
 {
+    /** Serialize checkout, webhook and reconciliation for one native order. */
+    public function synchronized(int $orderId, callable $action);
+
+    public function assertLocked(int $orderId): void;
+
     /**
      * @param array<string, mixed> $row
      * @return void

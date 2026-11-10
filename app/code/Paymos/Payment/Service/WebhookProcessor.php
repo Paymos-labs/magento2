@@ -28,7 +28,7 @@ use Paymos\Webhook\WebhookEvent;
  *
  * HTTP codes are the retry contract: duplicate->200, event still being
  * processed by another delivery->409, signature mismatch->401, timestamp
- * skew->401, config error->500, any other failure->400. There is no 202 — a
+ * skew->401, invalid payment evidence->400, internal/config error->500. There is no 202 — a
  * 2xx tells the server to stop retrying.
  */
 class WebhookProcessor
@@ -105,13 +105,17 @@ class WebhookProcessor
             $this->releaseEvent();
             $this->orderMapper->gateway()->logFailure('Paymos Magento configuration error.', ['error' => $e->getMessage()]);
             return new CallbackResult(500, 'Configuration error');
+        } catch (\UnexpectedValueException $e) {
+            $released = $this->releaseEvent();
+            $this->orderMapper->gateway()->logFailure('Paymos Magento webhook processing failed: evidence mismatch.', ['error' => $e->getMessage()]);
+            return new CallbackResult($released ? 400 : 500, 'Invalid payment evidence');
         } catch (\Throwable $e) {
             // A RuntimeException (snapshot/order/reverse-verify/amount) OR any
             // PHP Error during mutation must still release the in-flight dedup
             // lock, otherwise the event is durably marked seen and never retried.
             $this->releaseEvent();
             $this->orderMapper->gateway()->logFailure('Paymos Magento webhook processing failed.', ['error' => $e->getMessage()]);
-            return new CallbackResult(400, 'Processing failed');
+            return new CallbackResult(500, 'Processing failed');
         }
     }
 
@@ -119,15 +123,28 @@ class WebhookProcessor
     {
         $externalOrderId = $event->externalOrderId();
         if ($externalOrderId === '') {
-            throw new \RuntimeException('Paymos webhook payload is missing the external order id.');
+            throw new \UnexpectedValueException('Paymos webhook payload is missing the external order id.');
         }
 
         $row = $this->snapshots->findByExternalOrderId($externalOrderId);
         if (!is_array($row)) {
-            throw new \RuntimeException('Paymos Magento invoice snapshot was not found.');
+            throw new \UnexpectedValueException('Paymos Magento invoice snapshot was not found.');
+        }
+
+        $this->snapshots->synchronized((int) $row['order_id'], function () use ($event, $environment, $notifyCustomer): void {
+            $this->applyOwnedEvent($event, $environment, $notifyCustomer);
+        });
+    }
+
+    private function applyOwnedEvent(WebhookEvent $event, string $environment, bool $notifyCustomer): void
+    {
+        $row = $this->snapshots->findByExternalOrderId($event->externalOrderId());
+        if (!is_array($row)) {
+            throw new \UnexpectedValueException('Paymos Magento invoice snapshot was not found.');
         }
 
         $this->assertRowMatchesEvent($row, $event, $environment);
+        $this->orderMapper->loadSnapshotOrder($row);
 
         if ($this->requiresReverseVerify($event)) {
             $result = (new InvoiceReverseVerifier($this->client($environment)))->verify($event, [
@@ -138,10 +155,11 @@ class WebhookProcessor
             ]);
 
             if (!$result->isVerified()) {
-                throw new \RuntimeException('Paymos reverse verification failed: ' . $result->reason());
+                throw new \UnexpectedValueException('Paymos reverse verification failed: ' . $result->reason());
             }
         }
 
+        $this->snapshots->assertLocked((int) $row['order_id']);
         // Nothing leaves a final status on the server (Invoice.IsTerminal), so an
         // event that arrives after one is an out-of-order redelivery. It must not
         // comment on or move the order, nor overwrite the final status — that
@@ -185,6 +203,10 @@ class WebhookProcessor
         // apply() throws (e.g. AmountGuard holds the order for manual review), the
         // event is released for retry and the snapshot status must NOT be advanced
         // to a terminal value the order never actually reached.
+        if ($this->orderMapper->wouldRollBackPaidOrder($this->orderMapper->loadSnapshotOrder($row),
+            StatusMapper::invoiceAction($event->type(), $event->status()))) {
+            return;
+        }
         $this->orderMapper->apply($event, $row, $notifyCustomer);
 
         $this->snapshots->updateStatus($event->invoiceId(), $event->status());
@@ -196,16 +218,16 @@ class WebhookProcessor
     private function assertRowMatchesEvent(array $row, WebhookEvent $event, string $environment): void
     {
         if ((string) $row['environment'] !== $environment) {
-            throw new \RuntimeException('Paymos event environment does not match the Magento invoice snapshot.');
+            throw new \UnexpectedValueException('Paymos event environment does not match the Magento invoice snapshot.');
         }
-        if ((string) $row['project_id'] !== '' && $event->projectId() !== '' && (string) $row['project_id'] !== $event->projectId()) {
-            throw new \RuntimeException('Paymos event project does not match the Magento invoice snapshot.');
+        if ((string) $row['project_id'] === '' || $event->projectId() === '' || (string) $row['project_id'] !== $event->projectId()) {
+            throw new \UnexpectedValueException('Paymos event project does not match the Magento invoice snapshot.');
         }
-        if ((string) $row['external_order_id'] !== '' && $event->externalOrderId() !== '' && (string) $row['external_order_id'] !== $event->externalOrderId()) {
-            throw new \RuntimeException('Paymos event external order does not match the Magento invoice snapshot.');
+        if ((string) $row['external_order_id'] === '' || $event->externalOrderId() === '' || (string) $row['external_order_id'] !== $event->externalOrderId()) {
+            throw new \UnexpectedValueException('Paymos event external order does not match the Magento invoice snapshot.');
         }
-        if ((string) $row['paymos_invoice_id'] !== '' && $event->invoiceId() !== '' && (string) $row['paymos_invoice_id'] !== $event->invoiceId()) {
-            throw new \RuntimeException('Paymos event invoice id does not match the Magento invoice snapshot.');
+        if ((string) $row['paymos_invoice_id'] === '' || $event->invoiceId() === '' || (string) $row['paymos_invoice_id'] !== $event->invoiceId()) {
+            throw new \UnexpectedValueException('Paymos event invoice id does not match the Magento invoice snapshot.');
         }
     }
 
@@ -217,10 +239,10 @@ class WebhookProcessor
         }
 
         if ($environment === 'sandbox' && $isTest !== true) {
-            throw new \RuntimeException('Sandbox webhook payload is not marked as test.');
+            throw new \UnexpectedValueException('Sandbox webhook payload is not marked as test.');
         }
         if ($environment === 'live' && $isTest !== false) {
-            throw new \RuntimeException('Live webhook payload is marked as test.');
+            throw new \UnexpectedValueException('Live webhook payload is marked as test.');
         }
     }
 
@@ -247,14 +269,22 @@ class WebhookProcessor
     private function commitEvent(): void
     {
         if (method_exists($this->eventStore, 'commit')) {
-            $this->eventStore->commit();
+            if ($this->eventStore->commit() === false) {
+                throw new \RuntimeException('Paymos event reservation could not be committed.');
+            }
         }
     }
 
-    private function releaseEvent(): void
+    private function releaseEvent(): bool
     {
-        if (method_exists($this->eventStore, 'release')) {
-            $this->eventStore->release();
+        try {
+            if (method_exists($this->eventStore, 'release')) {
+                $this->eventStore->release();
+            }
+            return true;
+        } catch (\Throwable $error) {
+            $this->orderMapper->gateway()->logFailure('Paymos Magento event release failed.', ['error' => $error->getMessage()]);
+            return false;
         }
     }
 }

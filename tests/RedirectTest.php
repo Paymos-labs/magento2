@@ -20,6 +20,16 @@ final class RedirectTestOrder extends \Magento\Sales\Model\Order
 
     /** @var bool */
     public $cancelled = false;
+    public $state = 'new';
+    public $totalPaid = '0';
+    public $saves = 0;
+    public $onReload;
+    public function reset() { return $this; }
+    public function getResource() { return $this; }
+    public function load($order, $id) { if ($this->onReload) { ($this->onReload)($this); } return $this; }
+    public function getState() { return $this->state; }
+    public function getTotalPaid() { return $this->totalPaid; }
+    public function getTotalRefunded() { return '0'; }
 
     public function getId() { return 42; }
     public function getEntityId() { return 42; }
@@ -31,7 +41,7 @@ final class RedirectTestOrder extends \Magento\Sales\Model\Order
     public function getStatus() { return 'pending'; }
     public function setStatus($status) { return $this; }
     public function addCommentToStatusHistory($comment, $status = false) { $this->comments[] = (string) $comment; return $this; }
-    public function save() { return $this; }
+    public function save() { $this->saves++; return $this; }
     public function canCancel() { return true; }
     public function registerCancellation($comment = '') { $this->cancelled = true; $this->comments[] = (string) $comment; return $this; }
 }
@@ -86,6 +96,8 @@ final class RedirectTestSnapshots extends \Paymos\Payment\Service\InvoiceSnapsho
     public $inner;
 
     public function __construct(InMemorySnapshotRepository $inner) { $this->inner = $inner; }
+    public function synchronized(int $orderId, callable $action) { return $this->inner->synchronized($orderId, $action); }
+    public function assertLocked(int $orderId): void { $this->inner->assertLocked($orderId); }
     public function save(array $row): void { $this->inner->save($row); }
     public function findByExternalOrderId(string $externalOrderId) { return $this->inner->findByExternalOrderId($externalOrderId); }
     public function findByOrderId(int $orderId) { return $this->inner->findByOrderId($orderId); }
@@ -152,6 +164,35 @@ function test_magento_redirect_keeps_the_choose_another_method_message_for_a_fai
 
     assertSameValue(array('We could not start the crypto payment. Please choose another method.'), $messages->errors, 'a create that never happened can still be paid another way.');
     assertTrueValue($order->cancelled, 'the order without an invoice is cancelled.');
+}
+
+function test_magento_redirect_preserves_paid_fulfilled_refunded_and_snapshot_paid_orders()
+{
+    foreach (array('processing', 'complete', 'closed', 'total_paid', 'snapshot_paid') as $case) {
+        $calls = 0;
+        list($controller, $order, $messages) = paymos_m2_redirect(
+            $case === 'snapshot_paid' ? array(paymos_m2_snapshot(array('status' => 'paid'))) : array(),
+            static function () use (&$calls) { $calls++; throw new RuntimeException('No HTTP expected.'); });
+        if ($case === 'total_paid') { $order->totalPaid = '150'; }
+        elseif ($case !== 'snapshot_paid') { $order->state = $case; }
+        $result = $controller->execute();
+        assertSameValue('checkout/onepage/success', $result->path, $case . ' goes to the result page.');
+        assertSameValue(0, $order->saves, $case . ' is never saved by redirect.');
+        assertSameValue(0, $calls, $case . ' makes no API call.');
+        assertSameValue(array(), $messages->errors, 'No error on a completed order.');
+    }
+}
+
+function test_magento_redirect_reloads_paid_state_after_network_before_status_save()
+{
+    list($controller, $order) = paymos_m2_redirect(array(), static function () { return new FakeClient(); });
+    $loads = 0;
+    $order->onReload = static function ($fresh) use (&$loads): void {
+        if (++$loads === 2) { $fresh->state = 'processing'; $fresh->totalPaid = '150'; }
+    };
+    assertSameValue('checkout/onepage/success', $controller->execute()->path, 'Payment during HTTP is observed.');
+    assertSameValue(2, $loads, 'Native state is read before and after the network call.');
+    assertSameValue(0, $order->saves, 'No pending status overwrites paid state.');
 }
 
 function test_magento_translations_carry_the_contact_the_store_message()

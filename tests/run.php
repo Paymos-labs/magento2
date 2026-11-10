@@ -28,10 +28,13 @@ $testFiles = array(
     __DIR__ . '/EventStoreTest.php',
     __DIR__ . '/CheckoutProcessorTest.php',
     __DIR__ . '/RedirectTest.php',
+    __DIR__ . '/R31RegressionTest.php',
     __DIR__ . '/OrderMapperTest.php',
     __DIR__ . '/WebhookProcessorTest.php',
     __DIR__ . '/PaidLateCallbackTest.php',
     __DIR__ . '/ReconcilerTest.php',
+    __DIR__ . '/FinisherRegressionTest.php',
+    __DIR__ . '/InvoiceGatewayTest.php',
     __DIR__ . '/ConnectionStatusTest.php',
     __DIR__ . '/RefundAdapterTest.php',
 );

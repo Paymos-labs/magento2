@@ -50,27 +50,36 @@ class Reconciler
 
         foreach ($this->snapshots->findUnpaidRecent(50, $now - 86400) as $row) {
             try {
-                $invoice = $this->client((string) $row['environment'])->invoices()->get((string) $row['paymos_invoice_id']);
-                if (!$this->snapshotMatches($row, $invoice)) {
-                    $this->orderMapper->gateway()->log('Paymos reconcile skipped a snapshot mismatch.', [
-                        'paymos_invoice_id' => (string) $row['paymos_invoice_id'],
+                $applied += $this->snapshots->synchronized((int) $row['order_id'], function () use ($row, $now): int {
+                    $row = $this->snapshots->findByExternalOrderId((string) $row['external_order_id']);
+                    if (!is_array($row) || StatusMapper::isFinalStatus((string) $row['status'])) { return 0; }
+                    $invoice = $this->client((string) $row['environment'])->invoices()->get((string) $row['paymos_invoice_id']);
+                    $this->snapshots->assertLocked((int) $row['order_id']);
+                    if (!$this->snapshotMatches($row, $invoice)) {
+                        $this->orderMapper->gateway()->log('Paymos reconcile skipped a snapshot mismatch.', [
+                            'paymos_invoice_id' => (string) $row['paymos_invoice_id'],
+                        ]);
+                        return 0;
+                    }
+
+                    $status = $this->field($invoice, ['status']);
+                    $event = new WebhookEvent([
+                        'event_id' => 'reconcile_' . (string) $row['paymos_invoice_id'] . '_' . $status,
+                        'event_type' => $this->eventTypeForStatus($status),
+                        'occurred_at' => $now,
+                        'data' => $invoice,
                     ]);
-                    continue;
-                }
 
-                $status = $this->field($invoice, ['status']);
-                $this->snapshots->updateStatus((string) $row['paymos_invoice_id'], $status);
-
-                $event = new WebhookEvent([
-                    'event_id' => 'reconcile_' . (string) $row['paymos_invoice_id'] . '_' . $status,
-                    'event_type' => $this->eventTypeForStatus($status),
-                    'occurred_at' => $now,
-                    'data' => $invoice,
-                ]);
-
-                if ($this->orderMapper->apply($event, $row, false)) {
-                    $applied++;
-                }
+                    if ($this->orderMapper->wouldRollBackPaidOrder($this->orderMapper->loadSnapshotOrder($row),
+                        StatusMapper::invoiceAction($event->type(), $event->status()))) {
+                        return 0;
+                    }
+                    $paid = $this->orderMapper->apply($event, $row, false);
+                    // A terminal snapshot is an applied decision, not merely an API
+                    // observation. Keep it retryable when the native save fails.
+                    $this->snapshots->updateStatus((string) $row['paymos_invoice_id'], $status);
+                    return $paid ? 1 : 0;
+                });
             } catch (\Throwable $e) {
                 $this->orderMapper->gateway()->logFailure('Paymos reconcile failed for an invoice.', [
                     'paymos_invoice_id' => (string) $row['paymos_invoice_id'],
@@ -88,7 +97,8 @@ class Reconciler
      */
     private function snapshotMatches(array $row, array $invoice): bool
     {
-        return $this->matches((string) $row['project_id'], $this->field($invoice, ['project_id']))
+        return $this->matches((string) $row['paymos_invoice_id'], $this->field($invoice, ['invoice_id']))
+            && $this->matches((string) $row['project_id'], $this->field($invoice, ['project_id']))
             && $this->matches((string) $row['external_order_id'], $this->field($invoice, ['order', 'external_id']))
             && $this->matches(strtoupper((string) $row['currency']), strtoupper($this->field($invoice, ['order', 'currency'])))
             && StatusMapper::invoiceAction('', $this->field($invoice, ['status'])) !== StatusMapper::ACTION_IGNORE;
@@ -99,11 +109,7 @@ class Reconciler
         $expected = trim($expected);
         $actual = trim($actual);
 
-        // An empty ACTUAL value with a non-empty expected one is a mismatch, not a
-        // pass: when the API response shape changes, the snapshot guard must fail
-        // closed instead of rubber-stamping whatever arrives. An empty expected
-        // value (field absent from the snapshot) stays a skip.
-        return $expected === '' || ($actual !== '' && $expected === $actual);
+        return $expected !== '' && $actual !== '' && $expected === $actual;
     }
 
     private function eventTypeForStatus(string $status): string

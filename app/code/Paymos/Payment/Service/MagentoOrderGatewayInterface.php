@@ -24,7 +24,8 @@ interface MagentoOrderGatewayInterface
 
     /**
      * Invoice the order (create the Magento invoice) and move it to the paid
-     * status. Idempotent: a no-op when the order can no longer be invoiced.
+     * status. Reuses an existing matching paid invoice on retry; throws when
+     * neither a full invoice nor proof of that prior payment can be obtained.
      *
      * @return void
      */

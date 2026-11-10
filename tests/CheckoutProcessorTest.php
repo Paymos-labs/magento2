@@ -31,7 +31,7 @@ function test_magento_checkout_creates_invoice_and_snapshot()
 
     $payload = $invoices->createPayloads[0];
     assertSameValue('prj_123', $payload['project_id'], 'project_id must come from the credential config.');
-    assertSameValue('100.00', $payload['amount'], 'Amount must be a dot-decimal 2dp string.');
+    assertSameValue('100', $payload['amount'], 'Amount must be an exact normalized decimal string.');
     assertSameValue('USD', $payload['currency'], 'Currency must be upper-cased.');
     assertSameValue('100000042-0', $payload['external_order_id'], 'external_order_id must be increment id + renew suffix.');
     assertSameValue('77', $payload['client_id'], 'client_id must be the Magento customer id.');
@@ -44,7 +44,7 @@ function test_magento_checkout_creates_invoice_and_snapshot()
     assertFalseValue(isset($payload['webhook_url']), 'No webhook_url field.');
 
     assertSameValue(1, count($snapshots->rows), 'A snapshot row must be persisted.');
-    assertSameValue('100.00', $snapshots->rows[0]['amount'], 'Snapshot amount must be stored for AmountGuard.');
+    assertSameValue('100', $snapshots->rows[0]['amount'], 'Snapshot amount must be stored for AmountGuard.');
 }
 
 function test_magento_checkout_omits_client_id_for_guest()

@@ -47,6 +47,28 @@ class OrderMapper
         return $this->gateway;
     }
 
+    /** Load the native order and bind the snapshot to its exact increment id. */
+    public function loadSnapshotOrder(array $row): array
+    {
+        $orderId = (int) $row['order_id'];
+        $order = $this->gateway->loadOrder($orderId);
+        if ($order === null) {
+            throw new \RuntimeException('Magento order for the Paymos invoice snapshot was not found.');
+        }
+        $incrementId = (string) $order['increment_id'];
+        $externalId = (string) $row['external_order_id'];
+        $renewCount = isset($row['renew_count']) ? (string) $row['renew_count'] : '';
+        $renewedId = preg_match('/^(0|[1-9][0-9]*)$/D', $renewCount) === 1
+            && $externalId === $incrementId . '-' . $renewCount;
+        if ((int) $order['order_id'] !== $orderId || $incrementId === ''
+            || ($externalId !== $incrementId && !$renewedId)
+            || (isset($row['order_increment_id']) && (string) $row['order_increment_id'] !== $incrementId)
+        ) {
+            throw new \UnexpectedValueException('Paymos external order id does not belong to the Magento order.');
+        }
+        return $order;
+    }
+
     /**
      * @param array<string, mixed> $row     Invoice snapshot row.
      * @return bool True when the order was marked paid by this call.
@@ -59,10 +81,7 @@ class OrderMapper
         }
 
         $orderId = (int) $row['order_id'];
-        $order = $this->gateway->loadOrder($orderId);
-        if ($order === null) {
-            throw new \RuntimeException('Magento order for the Paymos invoice snapshot was not found.');
-        }
+        $order = $this->loadSnapshotOrder($row);
 
         // Roll-back guard: out-of-order delivery (a stale confirming, a late
         // cancelled/expired/underpaid after paid) must never downgrade a paid
@@ -119,6 +138,13 @@ class OrderMapper
      */
     private function complete(WebhookEvent $event, array $row, array $order, bool $notifyCustomer): bool
     {
+        if ((string) $order['state'] === 'canceled') {
+            $this->gateway->addComment(
+                (int) $order['order_id'],
+                'Paymos payment needs manual review: the Magento order is canceled. Invoice: ' . $event->invoiceId()
+            );
+            return false;
+        }
         if (!AmountGuard::isSafeToComplete(
             (string) $row['amount'],
             (string) $row['currency'],
@@ -166,7 +192,7 @@ class OrderMapper
     /**
      * @param array{is_paid:bool} $order
      */
-    private function wouldRollBackPaidOrder(array $order, string $action): bool
+    public function wouldRollBackPaidOrder(array $order, string $action): bool
     {
         if (empty($order['is_paid'])) {
             return false;

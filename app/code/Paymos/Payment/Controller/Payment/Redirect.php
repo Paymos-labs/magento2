@@ -94,6 +94,20 @@ class Redirect implements HttpGetActionInterface
         }
 
         try {
+            return $this->snapshots->synchronized((int) $order->getEntityId(), function () use ($order, $redirect) {
+                return $this->executeOwned($order, $redirect);
+            });
+        } catch (\Throwable $e) {
+            $this->logger->warning('Paymos checkout could not acquire or retain the order lock.', ['error' => $e->getMessage()]);
+            $this->messageManager->addErrorMessage((string) __('We could not start the crypto payment. Please choose another method.'));
+            return $redirect->setPath('checkout/cart');
+        }
+    }
+
+    private function executeOwned(Order $order, RedirectResult $redirect)
+    {
+        try {
+            if ($this->reloadAndHasPayment($order)) { return $redirect->setPath('checkout/onepage/success'); }
             $environment = $this->settings->mode($order->getStoreId());
             $processor = new CheckoutProcessor(
                 $this->configProvider->get(),
@@ -108,6 +122,9 @@ class Redirect implements HttpGetActionInterface
                 'currency' => (string) $order->getOrderCurrencyCode(),
                 'customer_id' => $order->getCustomerId(),
             ], $environment);
+
+            $this->snapshots->assertLocked((int) $order->getEntityId());
+            if ($this->reloadAndHasPayment($order)) { return $redirect->setPath('checkout/onepage/success'); }
 
             // Apply the configured "while awaiting payment" status so the merchant
             // sees the order in their chosen pre-payment status during the redirect.
@@ -133,6 +150,7 @@ class Redirect implements HttpGetActionInterface
 
             return $redirect->setUrl($result['payment_url']);
         } catch (\Paymos\Plugin\InvoiceReplacementBlockedException $e) {
+            if ($this->reloadAndHasPayment($order)) { return $redirect->setPath('checkout/onepage/success'); }
             // The order's previous Paymos invoice may still be paid (BUG-166): no
             // second invoice was cut, and cancelling the order here would hide a
             // payment that can still arrive on the old one. Leave the order as it
@@ -143,9 +161,11 @@ class Redirect implements HttpGetActionInterface
             $this->noteForManualReview($order, $e->result()->summary());
             $this->messageManager->addErrorMessage((string) __('The store needs to review this order before payment can continue. Please contact the store.'));
         } catch (ApiException $e) {
+            if ($this->reloadAndHasPayment($order)) { return $redirect->setPath('checkout/onepage/success'); }
             $this->failOrder($order, 'Paymos invoice creation failed: ' . $e->detail());
             $this->messageManager->addErrorMessage((string) __('We could not start the crypto payment: %1', $e->detail()));
         } catch (\Throwable $e) {
+            if ($this->reloadAndHasPayment($order)) { return $redirect->setPath('checkout/onepage/success'); }
             $this->failOrder($order, 'Paymos invoice creation failed: ' . $e->getMessage());
             $this->messageManager->addErrorMessage((string) __('We could not start the crypto payment. Please choose another method.'));
         }
@@ -157,6 +177,19 @@ class Redirect implements HttpGetActionInterface
         }
 
         return $redirect->setPath('checkout/cart');
+    }
+
+    private function reloadAndHasPayment(Order $order): bool
+    {
+        $orderId = (int) $order->getEntityId();
+        $this->snapshots->assertLocked($orderId);
+        $order->reset();
+        $order->getResource()->load($order, $orderId);
+        if (!$order->getEntityId()) { throw new \RuntimeException('Magento order no longer exists.'); }
+        $snapshot = $this->snapshots->findByOrderId($orderId);
+        return (float) $order->getTotalPaid() > 0 || (float) $order->getTotalRefunded() > 0
+            || in_array((string) $order->getState(), [Order::STATE_PROCESSING, Order::STATE_COMPLETE, Order::STATE_CLOSED], true)
+            || (is_array($snapshot) && in_array((string) $snapshot['status'], ['paid', 'paid_over'], true));
     }
 
     private function noteForManualReview(Order $order, string $summary): void

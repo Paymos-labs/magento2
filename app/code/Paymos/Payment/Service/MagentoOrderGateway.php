@@ -10,6 +10,7 @@ use Magento\Sales\Api\OrderRepositoryInterface;
 use Magento\Sales\Model\Order;
 use Magento\Sales\Model\Order\Email\Sender\InvoiceSender;
 use Magento\Sales\Model\Service\InvoiceService;
+use Paymos\Plugin\AmountGuard;
 
 /**
  * Concrete Magento implementation of the order operations the OrderMapper needs.
@@ -75,7 +76,7 @@ class MagentoOrderGateway implements MagentoOrderGatewayInterface
             'order_id' => (int) $order->getEntityId(),
             'store_id' => (int) $order->getStoreId(),
             'increment_id' => (string) $order->getIncrementId(),
-            'amount' => number_format((float) $order->getGrandTotal(), 2, '.', ''),
+            'amount' => (string) $order->getGrandTotal(),
             'currency' => strtoupper((string) $order->getOrderCurrencyCode()),
             'state' => (string) $order->getState(),
             'status' => (string) $order->getStatus(),
@@ -87,7 +88,10 @@ class MagentoOrderGateway implements MagentoOrderGatewayInterface
     {
         $order = $this->getOrder($orderId);
         if ($order === null) {
-            return;
+            throw new \RuntimeException('Magento order to invoice was not found.');
+        }
+        if ($order->getState() === Order::STATE_CANCELED) {
+            throw new \RuntimeException('A canceled Magento order cannot be invoiced automatically.');
         }
 
         // A redirect gateway parks the order in "payment review" while the buyer
@@ -100,17 +104,46 @@ class MagentoOrderGateway implements MagentoOrderGatewayInterface
             $order->setState(Order::STATE_PROCESSING);
         }
 
-        if ($order->canInvoice()) {
-            $payment = $order->getPayment();
-            if ($payment !== null) {
-                $payment->setLastTransId($transactionId);
-                $payment->setTransactionId($transactionId);
+        // A retry after the native transaction committed must reuse that exact
+        // paid invoice. A state label or canInvoice() === false is not proof.
+        $alreadyInvoiced = false;
+        foreach ($order->getInvoiceCollection()->clear() as $existingInvoice) {
+            if ((int) $existingInvoice->getState() === \Magento\Sales\Model\Order\Invoice::STATE_PAID
+                && (string) $existingInvoice->getTransactionId() === $transactionId
+                && AmountGuard::amountsEqual($existingInvoice->getGrandTotal(), $order->getGrandTotal())
+                && strtoupper((string) $existingInvoice->getOrderCurrencyCode()) === strtoupper((string) $order->getOrderCurrencyCode())
+            ) {
+                $alreadyInvoiced = true;
+                break;
             }
+        }
+        if (!$alreadyInvoiced) {
+            if (!$order->canInvoice()) {
+                throw new \RuntimeException('Magento order cannot be invoiced and has no matching paid invoice.');
+            }
+            $payment = $order->getPayment();
+            if ($payment === null) {
+                throw new \RuntimeException('Magento order has no payment to invoice.');
+            }
+            $payment->setLastTransId($transactionId);
+            $payment->setTransactionId($transactionId);
+            // This verified settlement completes the redirect authorization.
+            // Otherwise Magento register() may leave an offline invoice open.
+            $payment->setIsTransactionPending(false);
+            $payment->setIsTransactionClosed(true);
 
             $invoice = $this->invoiceService->prepareInvoice($order);
+            if (!$invoice || (float) $invoice->getTotalQty() <= 0
+                || !AmountGuard::amountsEqual($invoice->getGrandTotal(), $order->getGrandTotal())
+            ) {
+                throw new \RuntimeException('Magento could not prepare a full invoice for the Paymos payment.');
+            }
             $invoice->setRequestedCaptureCase(\Magento\Sales\Model\Order\Invoice::CAPTURE_OFFLINE);
             $invoice->setTransactionId($transactionId);
             $invoice->register();
+            if ((int) $invoice->getState() !== \Magento\Sales\Model\Order\Invoice::STATE_PAID) {
+                throw new \RuntimeException('Magento did not register the Paymos invoice as paid.');
+            }
 
             $transactionSave = $this->transaction->addObject($invoice)->addObject($invoice->getOrder());
             $transactionSave->save();
@@ -122,6 +155,11 @@ class MagentoOrderGateway implements MagentoOrderGatewayInterface
                     $this->logFailure('Paymos could not send the invoice email.', ['error' => $e->getMessage()]);
                 }
             }
+        }
+
+        // A delayed snapshot retry must not undo fulfilment or a later refund.
+        if ($alreadyInvoiced && in_array($order->getState(), [Order::STATE_COMPLETE, Order::STATE_CLOSED], true)) {
+            return;
         }
 
         $order->setState(Order::STATE_PROCESSING);
@@ -221,6 +259,14 @@ class MagentoOrderGateway implements MagentoOrderGatewayInterface
             return null;
         }
 
-        return $order instanceof Order ? $order : null;
+        if (!$order instanceof Order) {
+            return null;
+        }
+        // OrderRepository caches models. register() mutates payment/items before
+        // transaction save, so a failed save must not become the next attempt's
+        // evidence. Reset child collections as well as scalar totals and reload.
+        $order->reset();
+        $order->getResource()->load($order, $orderId);
+        return $order->getEntityId() ? $order : null;
     }
 }

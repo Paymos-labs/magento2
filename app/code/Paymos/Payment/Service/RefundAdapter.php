@@ -105,7 +105,17 @@ class RefundAdapter implements NativeRefundProjectorInterface
                     return 'refund_native_draft_changed';
                 }
             }
-            $invoice = $this->clients->create($intent->environment())->invoices()->get($intent->invoiceId());
+            $client = $this->clients->create($intent->environment());
+            try {
+                $invoice = $client->invoices()->get($intent->invoiceId());
+            } catch (\Paymos\Exception\ApiException $error) {
+                if ($error->statusCode() === 429 || $error->statusCode() >= 500) {
+                    return NativeRefundProjectorInterface::PREFLIGHT_RETRY;
+                }
+                throw $error;
+            } catch (\RuntimeException $error) {
+                return NativeRefundProjectorInterface::PREFLIGHT_RETRY;
+            }
             $snapshot = $mapping['snapshot'];
             if (($invoice['invoice_id'] ?? null) !== $intent->invoiceId()
                 || ($invoice['project_id'] ?? null) !== $intent->projectId()
@@ -190,7 +200,7 @@ class RefundAdapter implements NativeRefundProjectorInterface
             return;
         }
         if (($data['is_test'] ?? null) !== ($environment === 'sandbox')) {
-            throw new \RuntimeException('refund_callback_scope_conflict');
+            throw new \UnexpectedValueException('refund_callback_scope_conflict');
         }
         $intent = isset($data['external_order_id']) && is_string($data['external_order_id'])
             ? $this->store->findByExternalId($data['external_order_id']) : null;
@@ -206,7 +216,7 @@ class RefundAdapter implements NativeRefundProjectorInterface
             || ($data['invoice_id'] ?? null) !== $intent->invoiceId() || ($data['project_id'] ?? null) !== $intent->projectId()
             || ($data['refund_mode'] ?? $data['mode'] ?? null) !== $intent->mode()
             || ($intent->withdrawalId() !== null && ($data['withdrawal_id'] ?? null) !== $intent->withdrawalId())) {
-            throw new \RuntimeException('refund_callback_scope_conflict');
+            throw new \UnexpectedValueException('refund_callback_scope_conflict');
         }
         $this->reconcile($intent->operationId());
     }
@@ -242,7 +252,7 @@ class RefundAdapter implements NativeRefundProjectorInterface
     private function readUnbound(string $id, string $invoiceId, string $environment, string $projectId, string $mode): void
     {
         if ($id === '' || $invoiceId === '' || $projectId === '' || !in_array($mode, ['full', 'overpayment'], true)) {
-            throw new \RuntimeException('refund_unbound_scope_invalid');
+            throw new \UnexpectedValueException('refund_unbound_scope_invalid');
         }
         $orderId = $this->native->orderForProviderInvoice($invoiceId);
         $key = $this->native->paymentKey($orderId);
@@ -252,7 +262,7 @@ class RefundAdapter implements NativeRefundProjectorInterface
             $credentials = $this->credentials->loadCredentials();
             if ($row['paymos_invoice_id'] !== $invoiceId || $row['project_id'] !== $projectId || $row['environment'] !== $environment
                 || ($credentials[$environment]['project_id'] ?? null) !== $projectId) {
-                throw new \RuntimeException('refund_unbound_scope_conflict');
+                throw new \UnexpectedValueException('refund_unbound_scope_conflict');
             }
             $client = $this->clients->create($environment);
             $wire = $client->refunds()->get($id);
@@ -263,7 +273,7 @@ class RefundAdapter implements NativeRefundProjectorInterface
                 || ($invoice['order']['external_id'] ?? null) !== $row['external_order_id']
                 || !AmountGuard::amountsEqual($invoice['order']['amount'] ?? '', $row['amount'])
                 || ($invoice['order']['currency'] ?? null) !== $row['currency']) {
-                throw new \RuntimeException('refund_unbound_evidence_conflict');
+                throw new \UnexpectedValueException('refund_unbound_evidence_conflict');
             }
             $local = $this->store->findByExternalId($refund->externalOrderId());
             if ($local !== null) {

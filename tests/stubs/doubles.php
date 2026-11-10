@@ -22,6 +22,7 @@ final class FakeDbConnection
 {
     /** @var array<string, array<string, mixed>> */
     public $rows = array();
+    public $locks = array();
 
     /**
      * @param array<string, mixed> $bind
@@ -71,8 +72,13 @@ final class FakeDbConnection
         return new FakeDbSelect($this);
     }
 
-    public function fetchOne($select)
+    public function fetchOne($select, array $bind = array())
     {
+        if (is_string($select)) {
+            if (strpos($select, 'GET_LOCK') !== false) { $this->locks[$bind[0]] = true; return 1; }
+            if (strpos($select, 'RELEASE_LOCK') !== false) { unset($this->locks[$bind[0]]); return 1; }
+            if (strpos($select, 'IS_USED_LOCK') !== false) { return empty($this->locks[$bind[0]]) ? 0 : 1; }
+        }
         if ($select instanceof FakeDbSelect) {
             $id = $select->whereValue();
             if (!isset($this->rows[$id])) {
@@ -117,6 +123,14 @@ final class FakeDbConnection
     private function rowMatches(array $row, array $where)
     {
         foreach ($where as $condition => $value) {
+            if ($condition === 'status NOT IN (?)') {
+                if (in_array($row['status'], $value, true)) { return false; }
+                continue;
+            }
+            if ($condition === 'paymos_invoice_id = ?') {
+                if ($row['paymos_invoice_id'] !== $value) { return false; }
+                continue;
+            }
             if (strpos($condition, 'expires_at <') !== false) {
                 if (!(isset($row['expires_at']) && (int) $row['expires_at'] < (int) $value)) {
                     return false;
@@ -200,6 +214,7 @@ final class FakeDbSelect
  */
 final class FakeOrderGateway implements MagentoOrderGatewayInterface
 {
+    public $invoiceFailuresRemaining = 0;
     /** @var array<string, mixed>|null */
     private $order;
 
@@ -265,6 +280,13 @@ final class FakeOrderGateway implements MagentoOrderGatewayInterface
 
     public function invoiceOrder(int $orderId, string $paidStatus, string $comment, string $transactionId, bool $notifyCustomer)
     {
+        if ($this->invoiceFailuresRemaining > 0) {
+            $this->invoiceFailuresRemaining--;
+            throw new \RuntimeException('Injected native invoice save failure.');
+        }
+        if (!empty($this->order['is_paid'])) {
+            return;
+        }
         $this->calls[] = array(
             'op' => 'invoice',
             'order_id' => $orderId,
@@ -336,6 +358,19 @@ final class FakeOrderGateway implements MagentoOrderGatewayInterface
  */
 final class InMemorySnapshotRepository implements SnapshotRepositoryInterface
 {
+    public $onLock;
+    public $locked = [];
+    public function synchronized(int $orderId, callable $action)
+    {
+        if ($this->onLock !== null) { $hook = $this->onLock; $this->onLock = null; $hook(); }
+        $this->locked[$orderId] = true;
+        try { return $action(); } finally { unset($this->locked[$orderId]); }
+    }
+    public function assertLocked(int $orderId): void
+    {
+        if (empty($this->locked[$orderId])) { throw new \RuntimeException('Order lock missing.'); }
+    }
+    public $statusFailuresRemaining = 0;
     /** @var array<int, array<string, mixed>> */
     public $rows = array();
 
@@ -377,8 +412,13 @@ final class InMemorySnapshotRepository implements SnapshotRepositoryInterface
 
     public function updateStatus(string $paymosInvoiceId, string $status)
     {
+        if ($this->statusFailuresRemaining > 0) {
+            $this->statusFailuresRemaining--;
+            throw new \RuntimeException('Injected snapshot update failure.');
+        }
         foreach ($this->rows as $i => $row) {
-            if ((string) $row['paymos_invoice_id'] === $paymosInvoiceId) {
+            if ((string) $row['paymos_invoice_id'] === $paymosInvoiceId
+                && !\Paymos\Plugin\StatusMapper::isFinalStatus((string) $row['status'])) {
                 $this->rows[$i]['status'] = $status;
             }
         }

@@ -18,9 +18,41 @@ class InvoiceSnapshotRepository implements SnapshotRepositoryInterface
     /** @var ResourceConnection */
     private $resource;
 
+    private $locks = [];
+
     public function __construct(ResourceConnection $resource)
     {
         $this->resource = $resource;
+    }
+
+    public function synchronized(int $orderId, callable $action)
+    {
+        if (isset($this->locks[$orderId])) {
+            $this->assertLocked($orderId);
+            return $action();
+        }
+        $connection = $this->resource->getConnection();
+        $name = 'paymos_order_' . sha1($this->resource->getTableName(self::TABLE) . ':' . $orderId);
+        if ((int) $connection->fetchOne('SELECT GET_LOCK(?, 0)', [$name]) !== 1) {
+            throw new \RuntimeException('Paymos order is being updated. Please retry.');
+        }
+        $this->locks[$orderId] = $name;
+        try {
+            $this->assertLocked($orderId);
+            return $action();
+        } finally {
+            unset($this->locks[$orderId]);
+            $connection->fetchOne('SELECT RELEASE_LOCK(?)', [$name]);
+        }
+    }
+
+    public function assertLocked(int $orderId): void
+    {
+        if (!isset($this->locks[$orderId]) || (int) $this->resource->getConnection()->fetchOne(
+            'SELECT IS_USED_LOCK(?) = CONNECTION_ID()', [$this->locks[$orderId]]
+        ) !== 1) {
+            throw new \RuntimeException('Paymos order lock was lost. Please retry.');
+        }
     }
 
     /**
@@ -91,7 +123,8 @@ class InvoiceSnapshotRepository implements SnapshotRepositoryInterface
         $connection->update(
             $table,
             ['status' => $status],
-            ['paymos_invoice_id = ?' => $paymosInvoiceId]
+            ['paymos_invoice_id = ?' => $paymosInvoiceId,
+                'status NOT IN (?)' => ['paid', 'paid_over', 'underpaid', 'expired', 'cancelled']]
         );
     }
 
