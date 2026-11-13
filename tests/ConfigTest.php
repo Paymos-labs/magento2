@@ -102,3 +102,17 @@ function test_magento_config_webhook_secrets_skip_empty()
     assertTrueValue(isset($secrets['sandbox']), 'Sandbox secret must remain.');
     assertFalseValue(isset($secrets['live']), 'Empty live secret must not appear.');
 }
+
+function test_magento_sdk_dependency_preserves_supported_retry_contract()
+{
+    $manifest = json_decode((string) file_get_contents(dirname(__DIR__) . '/app/code/Paymos/Payment/composer.json'), true);
+    // ^1.10.0 means >=1.10.0 <2.0.0: old SDKs lack PREFLIGHT_RETRY.
+    assertSameValue('^1.10.0', $manifest['require']['paymos/php-sdk'], 'Require the first SDK with transient preflight retry, without admitting the next major.');
+}
+
+function test_magento_mirror_uses_verified_sdk_and_explicit_conformance()
+{
+    $workflow = (string) file_get_contents(dirname(__DIR__) . '/.github/workflows/ci.yml');
+    assertTrueValue(strpos($workflow, 'git clone --branch v1.10.0 --depth=1 https://github.com/paymos-labs/php-sdk') !== false, 'Mirror tests must exercise the published minimum SDK.');
+    assertTrueValue(strpos($workflow, 'PAYMOS_CONFORMANCE_CONTRACT="$RUNNER_TEMP/php-sdk/conformance/contract.json"') !== false, 'Mirror tests must load the pinned SDK conformance contract explicitly.');
+}

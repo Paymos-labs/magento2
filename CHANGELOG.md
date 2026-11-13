@@ -6,6 +6,11 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.11.4] - 2026-11-13
+
+- fix(plugins): unblock WordPress checks and align native recovery tests
+- chore: rebuild canonical CMS package
+
 ## [1.11.3] - 2026-11-13
 
 - chore: rebuild canonical CMS package
