@@ -80,3 +80,17 @@ function test_magento_reconciler_does_not_complete_without_api_amount()
     assertSameValue(0, $reconciler->run(), 'Missing API amount is not sufficient payment evidence.');
     assertSameValue(0, count($gateway->opsOfType('invoice')), 'Missing amount never invoices the order.');
 }
+
+function test_magento_reconciler_recovers_review_after_amount_correction()
+{
+    $gateway = new FakeOrderGateway();
+    $gateway->setAmount('250');
+    $snapshots = new InMemorySnapshotRepository(array(paymos_m2_snapshot()));
+    $reconciler = paymos_m2_reconciler(array('gateway' => $gateway, 'snapshots' => $snapshots));
+    assertSameValue(0, $reconciler->run(), 'Mismatched payment is not applied.');
+    assertSameValue('payment_review', $snapshots->findByOrderId(42)['status'], 'Review stays eligible.');
+    $gateway->setAmount('100');
+    assertSameValue(1, $reconciler->run(), 'Correction is picked up by reconciliation.');
+    assertSameValue(0, $reconciler->run(), 'Completed payment is no longer processed.');
+    assertSameValue(1, count($gateway->opsOfType('invoice')), 'Exactly one native payment.');
+}

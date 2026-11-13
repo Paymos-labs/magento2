@@ -23,7 +23,7 @@ use Paymos\Webhook\WebhookEvent;
  *   ACTION_IGNORE                                    -> nothing
  *
  * A PAYMENT_COMPLETE whose amount no longer matches the order is held (a review
- * comment, no paid transition) and the webhook is acknowledged — never retried.
+ * comment, no paid transition) and remains retryable until native completion.
  *
  * A roll-back guard stops a late cancelled/confirming/underpaid from
  * downgrading an order that is already paid.
@@ -138,9 +138,11 @@ class OrderMapper
      */
     private function complete(WebhookEvent $event, array $row, array $order, bool $notifyCustomer): bool
     {
+        $this->gateway->setPaymentFlag((int) $order['order_id'], 'paymos_observed_status:' . $event->invoiceId(), $event->status());
+        if (!empty($order['is_paid'])) { return true; }
         if ((string) $order['state'] === 'canceled') {
-            $this->gateway->addComment(
-                (int) $order['order_id'],
+            $this->noteReview(
+                (int) $order['order_id'], $event->invoiceId(),
                 'Paymos payment needs manual review: the Magento order is canceled. Invoice: ' . $event->invoiceId()
             );
             return false;
@@ -153,14 +155,9 @@ class OrderMapper
             $event->orderAmount(),
             $event->orderCurrency()
         )) {
-            // Amount/currency changed after invoice creation: hold for manual
-            // review instead of auto-completing a mismatched order. This is NOT a
-            // transient failure — the figures won't change on redelivery — so do
-            // NOT throw into the retry path (that would 400 and the server would
-            // retry forever, re-adding this comment each time). Add the review
-            // comment and return false so the webhook is acknowledged (200).
-            $this->gateway->addComment(
-                (int) $order['order_id'],
+            // Record the reason once; a later retry rechecks the corrected order.
+            $this->noteReview(
+                (int) $order['order_id'], $event->invoiceId(),
                 'Paymos payment needs manual review. ' . AmountGuard::mismatchSummary(
                     (string) $row['amount'],
                     (string) $row['currency'],
@@ -186,7 +183,16 @@ class OrderMapper
             $notifyCustomer
         );
 
-        return true;
+        return !empty($this->loadSnapshotOrder($row)['is_paid']);
+    }
+
+    private function noteReview(int $orderId, string $invoiceId, string $message): void
+    {
+        $key = 'paymos_review:' . $invoiceId . ':' . hash('sha256', $message);
+        if (!$this->gateway->hasPaymentFlag($orderId, $key)) {
+            $this->gateway->addComment($orderId, $message);
+            $this->gateway->setPaymentFlag($orderId, $key, '1');
+        }
     }
 
     /**

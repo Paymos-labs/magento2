@@ -99,9 +99,7 @@ function test_magento_webhook_rejects_timestamp_skew()
 function test_magento_webhook_holds_for_manual_review_on_amount_mismatch()
 {
     // Reverse-verify PASSES (invoice matches snapshot), but the live order total
-    // changed -> AmountGuard fails. This is NOT transient: the webhook is
-    // acknowledged (200) and the event committed so the server does not retry
-    // forever; the order is held with a review comment, never invoiced.
+    // Changed totals remain recoverable after the merchant corrects them.
     $gateway = new FakeOrderGateway();
     $gateway->setAmount('250.00');
     $eventStore = new RecordingEventStore();
@@ -111,11 +109,21 @@ function test_magento_webhook_holds_for_manual_review_on_amount_mismatch()
     $signature = paymos_m2_signed_header('whsec_test_secret', $body, 1709000000);
     $result = $ctx['processor']->handle($body, $signature, true, 1709000000);
 
-    assertSameValue(200, $result->httpCode(), 'An amount mismatch must acknowledge the webhook (200), not retry forever.');
+    assertSameValue(500, $result->httpCode(), 'Unapplied payment must remain retryable.');
     assertSameValue(0, count($gateway->opsOfType('invoice')), 'A mismatched order must not be invoiced.');
     assertSameValue(1, count($gateway->opsOfType('comment')), 'A mismatch must leave a manual-review comment.');
-    assertTrueValue($eventStore->committed, 'A handled (held) event must be committed so it is not retried.');
-    assertFalseValue($eventStore->released, 'A held mismatch must not release the dedup lock.');
+    assertFalseValue($eventStore->committed, 'Unapplied payment is not committed.');
+    assertTrueValue($eventStore->released, 'Review releases the reservation.');
+    assertSameValue('payment_review', $ctx['snapshots']->findByOrderId(42)['status'], 'Review remains eligible.');
+    $ctx['processor']->handle($body, $signature, true, 1709000000);
+    assertSameValue(1, count($gateway->opsOfType('comment')), 'Repeated review does not flood history.');
+    $stale = json_encode(paymos_m2_invoice_event('evt_stale_review', 'invoice.confirming', 'confirming'));
+    $ctx['processor']->handle($stale, paymos_m2_signed_header('whsec_test_secret', $stale, 1709000000), true, 1709000000);
+    assertSameValue('payment_review', $ctx['snapshots']->findByOrderId(42)['status'], 'Stale status cannot erase review.');
+    $gateway->setAmount('100.00');
+    assertSameValue(200, $ctx['processor']->handle($body, $signature, true, 1709000000)->httpCode(), 'Same event recovers after correction.');
+    assertSameValue('paid', $ctx['snapshots']->findByOrderId(42)['status'], 'Paid follows native completion.');
+    assertSameValue(1, count($gateway->opsOfType('invoice')), 'Recovery invoices exactly once.');
 }
 
 function test_magento_webhook_does_not_roll_back_paid_order_on_late_cancel()

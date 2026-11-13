@@ -166,9 +166,9 @@ function test_magento_redirect_keeps_the_choose_another_method_message_for_a_fai
     assertTrueValue($order->cancelled, 'the order without an invoice is cancelled.');
 }
 
-function test_magento_redirect_preserves_paid_fulfilled_refunded_and_snapshot_paid_orders()
+function test_magento_redirect_preserves_paid_fulfilled_refunded_orders()
 {
-    foreach (array('processing', 'complete', 'closed', 'total_paid', 'snapshot_paid') as $case) {
+    foreach (array('processing', 'complete', 'closed', 'total_paid') as $case) {
         $calls = 0;
         list($controller, $order, $messages) = paymos_m2_redirect(
             $case === 'snapshot_paid' ? array(paymos_m2_snapshot(array('status' => 'paid'))) : array(),
@@ -209,5 +209,17 @@ function test_magento_translations_carry_the_contact_the_store_message()
         fclose($handle);
 
         assertTrueValue(isset($rows[$key]) && $rows[$key] !== '', $locale . ': the message has a translation row.');
+    }
+}
+
+function test_magento_redirect_does_not_treat_unapplied_snapshot_as_native_payment()
+{
+    foreach (array('paid', 'paid_over', 'payment_review') as $status) {
+        list($controller, $order, $messages) = paymos_m2_redirect(
+            array(paymos_m2_snapshot(array('status' => $status))),
+            static function () { throw new RuntimeException('No API call expected.'); });
+        assertSameValue('checkout/cart', $controller->execute()->path, 'Unapplied payment needs review.');
+        assertSameValue(1, count($messages->errors), 'Buyer sees the review instruction.');
+        assertFalseValue($order->cancelled, 'Review does not cancel the order.');
     }
 }

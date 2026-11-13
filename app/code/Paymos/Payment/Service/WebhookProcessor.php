@@ -190,6 +190,10 @@ class WebhookProcessor
             return;
         }
 
+        if (($row['status'] ?? '') === 'payment_review'
+            && StatusMapper::invoiceAction($event->type(), $event->status()) !== StatusMapper::ACTION_PAYMENT_COMPLETE) {
+            return;
+        }
         if (StatusMapper::isFinalStatus(isset($row['status']) ? (string) $row['status'] : '')) {
             $this->orderMapper->gateway()->log(
                 'Paymos ignored an invoice status that arrived after a final one. Invoice: ' . $event->invoiceId(),
@@ -207,7 +211,11 @@ class WebhookProcessor
             StatusMapper::invoiceAction($event->type(), $event->status()))) {
             return;
         }
-        $this->orderMapper->apply($event, $row, $notifyCustomer);
+        $applied = $this->orderMapper->apply($event, $row, $notifyCustomer);
+        if (StatusMapper::invoiceAction($event->type(), $event->status()) === StatusMapper::ACTION_PAYMENT_COMPLETE && !$applied) {
+            $this->snapshots->updateStatus($event->invoiceId(), 'payment_review');
+            throw new \RuntimeException('Paymos payment is awaiting native order review.');
+        }
 
         $this->snapshots->updateStatus($event->invoiceId(), $event->status());
     }

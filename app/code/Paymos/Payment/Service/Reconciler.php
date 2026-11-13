@@ -74,10 +74,12 @@ class Reconciler
                         StatusMapper::invoiceAction($event->type(), $event->status()))) {
                         return 0;
                     }
+                    $payment = StatusMapper::invoiceAction($event->type(), $status) === StatusMapper::ACTION_PAYMENT_COMPLETE;
+                    if (($row['status'] ?? '') === 'payment_review' && !$payment) { return 0; }
                     $paid = $this->orderMapper->apply($event, $row, false);
                     // A terminal snapshot is an applied decision, not merely an API
                     // observation. Keep it retryable when the native save fails.
-                    $this->snapshots->updateStatus((string) $row['paymos_invoice_id'], $status);
+                    $this->snapshots->updateStatus((string) $row['paymos_invoice_id'], $payment && !$paid ? 'payment_review' : $status);
                     return $paid ? 1 : 0;
                 });
             } catch (\Throwable $e) {

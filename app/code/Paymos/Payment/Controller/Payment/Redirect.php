@@ -108,6 +108,11 @@ class Redirect implements HttpGetActionInterface
     {
         try {
             if ($this->reloadAndHasPayment($order)) { return $redirect->setPath('checkout/onepage/success'); }
+            $snapshot = $this->snapshots->findByOrderId((int) $order->getEntityId());
+            if (is_array($snapshot) && in_array((string) $snapshot['status'], ['paid', 'paid_over', 'payment_review'], true)) {
+                $this->messageManager->addErrorMessage((string) __('The store needs to review this order before payment can continue. Please contact the store.'));
+                return $redirect->setPath('checkout/cart');
+            }
             $environment = $this->settings->mode($order->getStoreId());
             $processor = new CheckoutProcessor(
                 $this->configProvider->get(),
@@ -186,10 +191,8 @@ class Redirect implements HttpGetActionInterface
         $order->reset();
         $order->getResource()->load($order, $orderId);
         if (!$order->getEntityId()) { throw new \RuntimeException('Magento order no longer exists.'); }
-        $snapshot = $this->snapshots->findByOrderId($orderId);
         return (float) $order->getTotalPaid() > 0 || (float) $order->getTotalRefunded() > 0
-            || in_array((string) $order->getState(), [Order::STATE_PROCESSING, Order::STATE_COMPLETE, Order::STATE_CLOSED], true)
-            || (is_array($snapshot) && in_array((string) $snapshot['status'], ['paid', 'paid_over'], true));
+            || in_array((string) $order->getState(), [Order::STATE_PROCESSING, Order::STATE_COMPLETE, Order::STATE_CLOSED], true);
     }
 
     private function noteForManualReview(Order $order, string $summary): void

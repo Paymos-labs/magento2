@@ -138,7 +138,7 @@ class InvoiceSnapshotRepository implements SnapshotRepositoryInterface
         $select = $connection->select()
             ->from($table)
             ->where('status NOT IN (?)', ['paid', 'paid_over', 'underpaid', 'expired', 'cancelled'])
-            ->where('created_at >= ?', date('Y-m-d H:i:s', $createdAfterUnix))
+            ->where("(status = 'payment_review' OR created_at >= ?)", date('Y-m-d H:i:s', $createdAfterUnix))
             ->order('entity_id DESC')
             ->limit($limit);
 
