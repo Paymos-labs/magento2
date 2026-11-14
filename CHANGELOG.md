@@ -6,6 +6,10 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.11.9] - 2026-11-14
+
+- chore: rebuild canonical CMS package
+
 ## [1.11.8] - 2026-11-14
 
 - chore: rebuild canonical CMS package
