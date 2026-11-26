@@ -1,10 +1,16 @@
 # Paymos for Magento 2
 
+**English** | [简体中文](README.zh-CN.md) | [Русский](README.ru.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [Türkçe](README.tr.md)
+
 Official Paymos payment module for Magento Open Source and Adobe Commerce. It adds one method to
 checkout: the shopper places the order, lands on the Paymos hosted checkout, picks a token and a
 network, and sends the transfer from their own wallet. Magento invoices the order when a signed
 webhook reports the payment confirmed on-chain — not when the shopper finds their way back to the
 store.
+
+[![Watch: 12 Official CMS Crypto Plugins — 1-Click Connect (Paymos)](https://i.ytimg.com/vi/VMLUGVumYkg/maxresdefault.jpg)](https://www.youtube.com/watch?v=VMLUGVumYkg)
+
+> **Video walkthrough (1:12, subtitles in 6 languages):** [Watch on YouTube](https://www.youtube.com/watch?v=VMLUGVumYkg)
 
 ## Requirements
 

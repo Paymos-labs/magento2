@@ -6,6 +6,11 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.12.7] - 2026-11-26
+
+- docs(plugins): add 6-language READMEs (EN/zh-CN/ru/es/de/tr) and YouTube walkthrough previews across all 25 Paymos-labs repos
+- chore: bundle Paymos PHP SDK v1.13.0
+
 ## [1.12.6] - 2026-11-25
 
 - chore: rebuild canonical CMS package
