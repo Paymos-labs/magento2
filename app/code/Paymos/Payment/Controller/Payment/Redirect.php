@@ -350,13 +350,27 @@ class Redirect implements HttpGetActionInterface
         foreach (['getShortDescription', 'getDescription'] as $getter) {
             if (method_exists($product, $getter)) {
                 $val = $product->$getter();
-                if (is_string($val) && trim($val) !== '') {
+                $val = is_string($val) ? self::withoutStyleAndScriptBlocks($val) : null;
+                if ($val !== null && trim($val) !== '') {
                     return $val;
                 }
             }
         }
 
         return null;
+    }
+
+    /**
+     * Page Builder (2.4.3+) keeps element styles in a <style> block and widget
+     * setup in <script type="text/x-magento-init"> inside the description.
+     * strip_tags() would leave their content as text, so both are removed with
+     * their content. Null when the pattern cannot be applied.
+     */
+    private static function withoutStyleAndScriptBlocks(string $html): ?string
+    {
+        $clean = preg_replace('#<(style|script)\b[^>]*>.*?</\1\s*>#is', '', $html);
+
+        return is_string($clean) ? $clean : null;
     }
 
     /**

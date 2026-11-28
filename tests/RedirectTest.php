@@ -265,3 +265,54 @@ function test_magento_redirect_option_suffixes_respect_200_scalar_title_budget()
     assertSameValue($base195, $products[0]['title'], 'Overflowing options keep the 195-scalar base title.');
     assertSameValue($exactBase . ' · Blue', $products[1]['title'], 'Options fitting within 200 UTF-8 scalars are appended.');
 }
+
+function test_magento_redirect_item_description_drops_page_builder_style_blocks()
+{
+    // CMSP-28: since 2.4.3 Page Builder keeps element styles in a <style> block
+    // inside the product description. strip_tags() leaves its CSS as text, so
+    // the buyer read "#html-body [data-pb-style=…]{…}" as the item description.
+    $pageBuilder = '<style>#html-body [data-pb-style=B9CB6F6]{justify-content:flex-start;display:flex;flex-direction:column}</style>'
+        . '<div data-content-type="row" data-appearance="contained" data-element="main">'
+        . '<div data-enable-parallax="0" data-element="inner" data-pb-style="B9CB6F6">'
+        . '<div data-content-type="text" data-appearance="default" data-element="main"><p>Hand-stitched leather strap.</p></div>'
+        . '</div></div><script type="text/x-magento-init">{"*":{"Magento_PageBuilder/js/widget-initializer":{}}}</script>';
+    $cssOnly = '<style>#html-body [data-pb-style=AAA111]{display:none}</style>';
+    $makeItem = static function (string $name, string $shortDescription, string $description) {
+        $product = new class ($shortDescription, $description) {
+            private $short;
+            private $long;
+            public function __construct(string $short, string $long) { $this->short = $short; $this->long = $long; }
+            public function getShortDescription() { return $this->short; }
+            public function getDescription() { return $this->long; }
+        };
+        return new class ($name, $product) {
+            private $name;
+            private $product;
+            public function __construct(string $name, $product) { $this->name = $name; $this->product = $product; }
+            public function isDeleted() { return false; }
+            public function getParentItemId() { return null; }
+            public function getName() { return $this->name; }
+            public function getProductOptions() { return array(); }
+            public function getDescription() { return null; }
+            public function getProduct() { return $this->product; }
+            public function getQtyOrdered() { return 1; }
+            public function getPrice() { return '75.00'; }
+        };
+    };
+
+    $invoices = new FakeInvoices();
+    list($controller, $order) = paymos_m2_redirect(array(), static function () use ($invoices) {
+        return new FakeClient($invoices);
+    });
+    $order->items = array(
+        $makeItem('Leather watch', '', $pageBuilder),
+        $makeItem('Steel watch', $cssOnly, '<p>Brushed steel case.</p>'),
+    );
+
+    $controller->execute();
+
+    $products = $invoices->createPayloads[0]['products'] ?? null;
+    assertTrueValue(is_array($products) && count($products) === 2, 'both items are sent.');
+    assertSameValue('Hand-stitched leather strap.', $products[0]['description'] ?? null, 'the description keeps the text without the Page Builder CSS.');
+    assertSameValue('Brushed steel case.', $products[1]['description'] ?? null, 'a short description that is only styles falls back to the description.');
+}

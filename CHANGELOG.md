@@ -6,6 +6,13 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.12.9] - 2026-11-28
+
+- fix(magento2): strip Page Builder style and script from item descriptions
+
+### Fixed
+- **Page Builder CSS in the checkout item description (`Redirect`):** For a product without a short description, the item description came from a Page Builder description (2.4.3+), whose `<style>` block and `text/x-magento-init` script survived tag stripping as text, so the buyer read `#html-body [data-pb-style=…]{…}` at checkout. `<style>` and `<script>` blocks are now removed with their content before the description is sent.
+
 ## [1.12.8] - 2026-11-27
 
 - chore: rebuild canonical CMS package
