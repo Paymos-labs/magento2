@@ -25,6 +25,8 @@ class MagentoRefundTransport implements \Paymos\Http\TransportInterface
     public $invoice;
     public $onPost;
     public $invoiceFailure = null;
+    /** Statuses the next refund reads answer with (temporary 401/403/404 after an accepted POST). */
+    public $refundReadFailures = [];
 
     public function __construct($store, $db)
     {
@@ -64,6 +66,12 @@ class MagentoRefundTransport implements \Paymos\Http\TransportInterface
             if (is_int($this->invoiceFailure)) { return new \Paymos\Http\HttpResponse($this->invoiceFailure, '{}', []); }
             $wire = $this->invoice;
         } else {
+            if ($this->refundReadFailures) {
+                $status = (int) array_shift($this->refundReadFailures);
+                return new \Paymos\Http\HttpResponse($status, json_encode(['type' => 'https://api.paymos.io/errors/unavailable',
+                    'title' => 'Unavailable', 'status' => $status, 'detail' => 'Simulated temporary refund read failure',
+                    'code' => 'refund_not_found']), ['content-type' => 'application/problem+json']);
+            }
             $id = basename($path);
             $wire = $this->withdrawals[$id];
         }
@@ -106,6 +114,31 @@ function test_magento_refund_transient_preflight_resumes_saved_intent()
     $intent = $adapter->submit(42, 'full', 'preflight-denied-001', []);
     assertSameValue('review', $intent->cashState(), 'Definitive authorization refusal remains review.');
     assertSameValue(['GET'], array_column($http->requests, 'method'), 'Rejected read cannot send cash.');
+}
+
+/**
+ * BUG-1347 (feature-audit 3.11): the server accepted the refund POST, but the
+ * reverse read right after it answered a temporary 401/403/404. The next
+ * reconcile reads again and the completed refund is projected.
+ */
+function test_magento_refund_accepted_refund_survives_a_temporary_reverse_read_failure()
+{
+    foreach ([401, 403, 404] as $status) {
+        list($db, $store, $http, $native, $credentials, $adapter) = magento_refund_fixture();
+        $http->refundReadFailures = [$status];
+        $intent = $adapter->submit(42, 'overpayment', 'read-retry-token-' . $status);
+        assertSameValue(1, count($http->withdrawals), $status . ': the refund was accepted once.');
+
+        foreach ($http->withdrawals as $id => $row) { $http->withdrawals[$id]['status'] = 'completed'; }
+        $adapter->reconcile($intent->operationId());
+
+        $after = $store->getIntent($intent->operationId());
+        assertSameValue(array_keys($http->withdrawals)[0], $after->withdrawalId(), $status . ': the accepted refund is bound after the read recovers.');
+        assertSameValue('completed', $after->cashState(), $status . ': the cash refund is completed.');
+        assertSameValue('applied', $after->projectionState(), $status . ': the refund is projected into Magento.');
+        assertSameValue(1, $db->native['notes'], $status . ': one cash note on the order.');
+        assertSameValue(1, count($http->withdrawals), $status . ': no second refund is sent.');
+    }
 }
 
 function test_magento_ton_raw_pin_accepts_friendly_same_account_and_rejects_another()

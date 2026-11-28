@@ -6,6 +6,14 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.12.10] - 2026-11-28
+
+- fix(magento2): re-read an accepted refund after a temporary read failure
+
+### Fixed
+- **Accepted refund stuck after a temporary read failure (`RefundIntentStore`):** When the server accepted the refund but the read right after it answered a temporary 401/403/404, the refund stayed in `refund_read_unavailable` for good. The store now keeps the unverified withdrawal id (`RefundCandidateStoreInterface`), so the next check reads it again and records the refund in Magento.
+- **PHP SDK floor:** `composer.json` now requires `paymos/php-sdk` `^1.12.0`, the first release with `RefundCandidateStoreInterface`; a Composer install can no longer resolve a 1.11.x SDK that lacks it.
+
 ## [1.12.9] - 2026-11-28
 
 - fix(magento2): strip Page Builder style and script from item descriptions

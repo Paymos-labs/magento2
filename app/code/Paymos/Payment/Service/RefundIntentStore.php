@@ -8,13 +8,14 @@ use Magento\Framework\App\ResourceConnection;
 use Paymos\Plugin\AmountGuard;
 use Paymos\Plugin\EffectClaim;
 use Paymos\Plugin\NativeProjectionResult;
+use Paymos\Plugin\RefundCandidateStoreInterface;
 use Paymos\Plugin\RefundIntent;
 use Paymos\Plugin\RefundIntentPage;
 use Paymos\Plugin\RefundIntentStoreInterface;
 use Paymos\Plugin\RefundStates;
 use Paymos\Plugin\VerifiedRefund;
 
-class RefundIntentStore implements RefundIntentStoreInterface
+class RefundIntentStore implements RefundIntentStoreInterface, RefundCandidateStoreInterface
 {
     private $resource;
     private $db;
@@ -268,6 +269,13 @@ class RefundIntentStore implements RefundIntentStoreInterface
                 throw new \RuntimeException('refund_projection_conflict');
             }
             $this->update($intent, ['projection' => $result->toArray()]);
+        });
+    }
+
+    public function recordReadCandidate(string $operationId, ?string $candidateWithdrawalId, int $retryCount): void
+    {
+        $this->transaction(function () use ($operationId, $candidateWithdrawalId, $retryCount) {
+            $this->update($this->getIntent($operationId), ['candidate_withdrawal_id' => $candidateWithdrawalId, 'read_retry_count' => $retryCount]);
         });
     }
 
